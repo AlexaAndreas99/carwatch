@@ -884,6 +884,11 @@ use — that is stated every time you paste one, and never silently.
 
 MIT — see [LICENSE](LICENSE). Use it, change it, ship it; just keep the copyright line.
 
+**The licence covers this code and nothing else.** It grants no rights over the sites' content,
+and it is not permission to collect from anyone: whether you may point this at a given site is
+between you and that site's terms, its robots.txt and the law where you are. Check that
+yourself before you run it, and remember that the scale you run it at is most of the question.
+
 The cars, photos and listing pages it reads belong to the sites and the people who posted
 them. CarWatch stores text facts about an ad and hot-links its photo; it downloads no images
 and republishes nothing. See [Responsible use](#responsible-use) before pointing it at a site.
