@@ -181,6 +181,17 @@
       });
     })();
 
+    // Filters start folded on a narrow window, where the panel would otherwise
+    // fill the screen before the first car, and open on a wide one, where the
+    // column has room for them. CSS cannot set `open`, so this is the one line
+    // of script it takes.
+    (function () {
+      var drawer = document.querySelector('.filter-drawer');
+      if (drawer && window.matchMedia('(max-width: 900px)').matches) {
+        drawer.open = false;
+      }
+    })();
+
     // A scheduled run under way: "collecting in 12:34", then "collecting for
     // 0:42". The server says how many seconds were left when it drew the line
     // and the browser counts from there, so the two clocks never have to

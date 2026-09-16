@@ -188,6 +188,22 @@ def _format_when(value) -> str:
     return value.strftime("%Y-%m-%d")
 
 
+def _format_tracked(value) -> str:
+    """How long CarWatch has been watching this car.
+
+    The card said "seen 3d ago", which reads as *last* seen; it is the first
+    sighting. How long a car has been sitting there is one of the few things
+    the listing sites do not tell you, so it is worth saying plainly.
+    """
+    if value is None:
+        return "not yet"
+    hours = (utcnow() - value).total_seconds() / 3600
+    if hours < 24:
+        return "since today"
+    days = int(hours // 24)
+    return f"{days} day{'' if days == 1 else 's'}"
+
+
 def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     config: Config = load_config(config_path)
     # Make sure the schema exists even if the collector has never run, so the
@@ -208,6 +224,7 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     templates.env.filters["km"] = _format_km
     templates.env.filters["delta"] = _format_delta
     templates.env.filters["when"] = _format_when
+    templates.env.filters["tracked"] = _format_tracked
     templates.env.filters["sparkline"] = _sparkline
     templates.env.filters["site_label"] = _site_label
     templates.env.filters["plain"] = _plain_number

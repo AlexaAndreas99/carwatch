@@ -609,6 +609,42 @@ th a.sort.on { color: var(--ink); }
   align-items: start;
 }
 
+/* Listings and Favorites stack the configurations and the filters in one
+   column. The filters used to sit above the cars, taking the full width and
+   two rows of height from the thing the page is for, and leaving this column
+   empty below three configurations. The rail carries the stickiness, so both
+   panels travel together. */
+.rail {
+  position: sticky; top: 4.25rem;
+  display: flex; flex-direction: column; gap: .8rem; min-width: 0;
+  max-height: calc(100vh - 5.5rem); overflow-y: auto;
+}
+.rail .sidebar { position: static; top: auto; }
+.panel-head {
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--dim); margin: .1rem .25rem -.5rem;
+}
+
+/* "3 prices" on a card: this car has moved while we watched. */
+.card-prices::before { content: "· "; }
+
+.filter-drawer { min-width: 0; }
+.filter-drawer > summary { list-style: none; cursor: default; pointer-events: none; }
+.filter-drawer > summary::-webkit-details-marker { display: none; }
+
+/* The same form as before, laid out down the column instead of across. */
+.rail .toolbar {
+  display: flex; flex-direction: column; align-items: stretch; gap: .45rem;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  padding: .6rem; margin: 0;
+}
+.rail .toolbar input[type="search"],
+.rail .toolbar input[type="number"],
+.rail .toolbar select { width: 100%; min-width: 0; max-width: none; }
+.rail .toolbar .field-pair { width: 100%; }
+.rail .toolbar .field-pair input { flex: 1 1 0; }
+.rail .toolbar #toolbar-clear { align-self: flex-end; }
+
 .sidebar {
   position: sticky; top: 4.25rem;   /* clears the sticky topbar */
   background: var(--card);
@@ -706,6 +742,18 @@ a.config-open:hover { color: var(--accent); background: var(--card); }
    window keeps the cars readable rather than squeezing them into a gutter. */
 @media (max-width: 900px) {
   .with-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; max-height: none; overflow: visible; gap: .5rem; }
+  .rail .toolbar { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .rail .toolbar input[type="search"] { min-width: 12rem; }
+  .rail .toolbar input[type="number"] { width: 6.5rem; }
+  .rail .toolbar select { max-width: 14rem; }
+  .filter-drawer > summary {
+    pointer-events: auto; cursor: pointer; display: inline-block;
+    margin: 0 0 .4rem; padding: .25rem .7rem;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--card);
+  }
+  .filter-drawer > summary::after { content: " ▾"; }
+  .filter-drawer[open] > summary::after { content: " ▴"; }
   .sidebar { position: static; padding: .5rem; }
   .sidebar-head { display: none; }
   .config-list { display: flex; flex-wrap: wrap; gap: .3rem; }
@@ -812,16 +860,35 @@ tr.muted td { opacity: .55; }
 
 /* Inline SVG rather than a chart library: this is always on screen, and
    fourteen points do not justify loading Chart.js on every page view. */
-.trend { color: var(--accent); }
-.trend svg {
-  width: 100%; height: 90px; display: block;
+/* The median-price chart. The geometry is computed server-side (`_trend_chart`)
+   so the template does no arithmetic and the page still loads no chart library.
+   It was a bare line in an empty box: no scale, no points, nothing to read a
+   value off. */
+.trend {
   background: var(--card); border: 1px solid var(--line); border-radius: 8px;
-  padding: .25rem 0;
+  padding: .6rem .6rem .3rem;
 }
-.trend-axis {
-  display: flex; justify-content: space-between;
-  font-size: 12px; color: var(--ink); margin-top: .25rem;
+.trend svg { width: 100%; height: auto; display: block; overflow: visible; }
+.trend .grid-line { stroke: var(--line); }
+.trend .band { fill: var(--accent); opacity: .12; }
+.trend .line {
+  fill: none; stroke: var(--accent); stroke-width: 2.5;
+  stroke-linejoin: round; stroke-linecap: round;
 }
+.trend .dot { fill: var(--card); stroke: var(--accent); stroke-width: 2; }
+.trend .dot:hover { fill: var(--accent); }
+.trend .axis { fill: var(--dim); font-size: 11px; }
+.trend .axis-y { text-anchor: end; }
+.trend .axis-last { text-anchor: end; }
+.trend-key {
+  display: flex; flex-wrap: wrap; gap: 1rem;
+  font-size: 12px; color: var(--dim); margin: .4rem .1rem .2rem;
+}
+.trend-key .swatch {
+  display: inline-block; width: .7rem; height: .7rem; border-radius: 2px;
+  margin-right: .35rem; vertical-align: -1px; background: var(--accent);
+}
+.trend-key .swatch-band { opacity: .3; }
 
 /* Two configurations describing the same car used to be invisible. */
 .also-in { display: block; font-size: 11px; color: var(--dim); margin-top: .2rem; }
@@ -1029,4 +1096,22 @@ a.next-run:hover { color: var(--accent); }
   font: inherit; padding: .2rem .4rem;
   border: 1px solid var(--line); border-radius: 5px;
   background: var(--bg); color: var(--ink);
+}
+
+@media (max-width: 760px) {
+  .topbar { gap: .75rem; padding: .6rem .8rem; flex-wrap: nowrap; }
+  .brand { white-space: nowrap; }
+  /* Scroll the tabs rather than wrap them: four items, one line, always. */
+  .topbar nav { gap: .8rem; overflow-x: auto; scrollbar-width: none; }
+  .topbar nav::-webkit-scrollbar { display: none; }
+  .topbar nav a { white-space: nowrap; }
+  /* The next run is on the Runs page too, and the button matters more here. */
+  .topbar .next-run { display: none; }
+  /* The button keeps its width and its one line; the tabs give up the room,
+     scrolling instead of wrapping. */
+  .topbar .run-all { margin-left: auto; flex: none; }
+  .run-all .btn-run { padding: .3rem .6rem; font-size: 12px; white-space: nowrap; }
+  .topbar nav { min-width: 0; flex: 1 1 auto; }
+  .brand { flex: none; }
+  main { padding: 1rem .8rem; }
 }

@@ -198,37 +198,57 @@
   fewer than a handful of cars are left out — a median over two ads is one
   seller's opinion, not the market's.
 #}
-{% if trend | length >= 2 %}
-  {% set lows = trend | map(attribute='median') | list %}
-  {% set low = lows | min %}
-  {% set high = lows | max %}
-  {% set span = (high - low) or 1 %}
-
+{% if chart %}
 <h2 class="section-head">
   Median asking price
   <span class="section-link">
-    {{ trend | length }} day{{ '' if trend | length == 1 else 's' }} ·
+    {{ trend | length }} day{{ '' if trend | length == 1 else 's' }} &middot;
     {{ trend[-1].cars }} cars today
   </span>
 </h2>
 
 <div class="trend">
-  <svg viewBox="0 0 100 32" preserveAspectRatio="none" role="img"
-       aria-label="Median asking price over the last {{ trend | length }} days">
-    <polyline fill="none" stroke="currentColor" stroke-width="0.8"
-              stroke-linejoin="round" stroke-linecap="round"
-              points="
-      {%- for p in trend -%}
-        {{ (loop.index0 * 100 / ((trend | length) - 1)) | round(2) }},{{ (28 - 24 * (p.median - low) / span) | round(2) }}
-        {{ ' ' }}
-      {%- endfor -%}"/>
+  <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img"
+       aria-label="Median asking price over {{ trend | length }} days:
+                   {{ trend[0].median | price('EUR') }} then,
+                   {{ trend[-1].median | price('EUR') }} now.">
+    {# What each height is worth. Without these the line had no scale, and a
+       200 EUR wobble looked the same as a 2,000 EUR slide. #}
+    {% for tick in chart.ticks %}
+      <line class="grid-line" x1="{{ chart.left }}" y1="{{ tick.y }}"
+            x2="{{ chart.right }}" y2="{{ tick.y }}"/>
+      <text class="axis axis-y" x="{{ chart.left - 8 }}" y="{{ tick.y + 4 }}">
+        {{- tick.value | price -}}
+      </text>
+    {% endfor %}
+
+    {# The middle half of each day's asking prices, behind the median. #}
+    <polygon class="band" points="{{ chart.band }}"/>
+    <polyline class="line" points="{{ chart.line }}"/>
+
+    {# One dot per day, each carrying its own figures. A native tooltip needs no
+       script, on a page that deliberately loads no chart library. #}
+    {% for dot in chart.dots %}
+      <circle class="dot" cx="{{ dot.x }}" cy="{{ dot.y }}" r="3.5">
+        <title>{{ dot.point.day.strftime('%d %b') }} — median {{ dot.point.median | price('EUR') }} across {{ dot.point.cars }} cars; middle half {{ dot.point.low | price }}–{{ dot.point.high | price('EUR') }}</title>
+      </circle>
+    {% endfor %}
+
+    <text class="axis" x="{{ chart.left }}" y="{{ chart.height - 6 }}">
+      {{- trend[0].day.strftime('%d %b') -}}
+    </text>
+    <text class="axis axis-last" x="{{ chart.right }}" y="{{ chart.height - 6 }}">
+      {{- trend[-1].day.strftime('%d %b') -}}
+    </text>
   </svg>
-  <div class="trend-axis">
-    <span>{{ trend[0].day.strftime('%d %b') }}</span>
-    <span class="dim">{{ low | price }} – {{ high | price('EUR') }}</span>
-    <span>{{ trend[-1].day.strftime('%d %b') }}</span>
-  </div>
 </div>
+
+<p class="trend-key">
+  <span><span class="swatch"></span>median asking price</span>
+  <span><span class="swatch swatch-band"></span>middle half of the prices</span>
+  <span>hover a point for that day's figures</span>
+</p>
+
 {% elif summary.cars %}
 <h2 class="section-head">Median asking price</h2>
 <p class="totals dim">

@@ -1425,3 +1425,39 @@ def test_the_baseline_setting_survives_a_type_filter(project):
     assert 'href="?type=new' in body
     assert "baseline=1" in body
     assert "Was always there" in project.get("/changes?type=new&baseline=1")
+
+
+# ------------------------------------------------- what the card knows and the site does not
+
+
+def test_a_card_says_how_long_the_car_has_been_watched(project):
+    """"seen 3d ago" read as *last* seen; it was always the first sighting.
+
+    How long a car has been sitting there is one of the few things the listing
+    pages do not tell you, so the card says it plainly.
+    """
+    body = project.run({"autovit": [raw("700", AUTOVIT_AD, 26980.0)]}).get()
+
+    assert "tracked since today" in body
+    assert "seen 3d ago" not in body
+
+
+def test_a_card_counts_the_prices_it_has_recorded(project):
+    """A car that has moved while we watched says so; one that has not stays quiet."""
+    project.run({"autovit": [raw("700", AUTOVIT_AD, 26980.0)]})
+    assert "prices</span>" not in project.get()
+
+    project.run({"autovit": [raw("700", AUTOVIT_AD, 25980.0)]})
+    assert "2 prices</span>" in project.get()
+
+
+def test_how_long_a_car_has_been_watched_reads_as_days():
+    from datetime import timedelta
+
+    from carwatch.models import utcnow
+    from carwatch.web.app import _format_tracked
+
+    assert _format_tracked(utcnow()) == "since today"
+    assert _format_tracked(utcnow() - timedelta(days=1)) == "1 day"
+    assert _format_tracked(utcnow() - timedelta(days=11)) == "11 days"
+    assert _format_tracked(None) == "not yet"

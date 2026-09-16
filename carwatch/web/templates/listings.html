@@ -24,21 +24,23 @@
 {% block content %}
 
 <div class="with-sidebar">
+{#
+  Left column: what you are looking at (the configurations) and what you are
+  looking for (the filters), in one place. The filters used to sit above the
+  cars, where they took the full width and two rows of height from the thing
+  the page is for.
+#}
+<div class="rail">
 {% include "partials/sidebar.html" %}
-<div class="scoped{{ ' favorites-page' if on_favorites }}">
-
-<div class="page-head">
-  <h1>{{ page.title }}</h1>
-  {% if on_favorites %}
-    <p class="totals dim">
-      The cars you starred with ☆. Unstarring one fades it until the page
-      reloads, so a slip is one click to undo.
-    </p>
-  {% endif %}
-  {% include "partials/listing_tabs.html" %}
-
-  {#
-    The toolbar. Still a plain GET form, so every filtered view is a URL you can
+{#
+  A <details> so a narrow window can fold the filters away — down there they
+  would otherwise fill the screen before the first car. Open by default, and
+  on a wide window the summary is inert, so the column simply shows them.
+#}
+<details class="filter-drawer" open>
+<summary class="panel-head">Filters</summary>
+{#
+  The toolbar. Still a plain GET form, so every filtered view is a URL you can
     bookmark or paste — the query string *is* the state (§6), and `hx-push-url`
     keeps that true while filtering live.
 
@@ -104,6 +106,20 @@
       {%- endif -%}
     </span>
   </form>
+</details>
+</div>
+<div class="scoped{{ ' favorites-page' if on_favorites }}">
+
+<div class="page-head">
+  <h1>{{ page.title }}</h1>
+  {% if on_favorites %}
+    <p class="totals dim">
+      The cars you starred with ☆. Unstarring one fades it until the page
+      reloads, so a slip is one click to undo.
+    </p>
+  {% endif %}
+  {% include "partials/listing_tabs.html" %}
+
 
 <div id="listing-results">
   {% include "partials/listing_results.html" %}

@@ -1450,6 +1450,89 @@ class TrendPoint:
     day: date
     median: float
     cars: int
+    # The middle half of that day's asking prices. Drawn as a band behind the
+    # median, so a line that barely moves over a widening market reads as what
+    # it is. Min and max would draw one optimistic seller as the market.
+    low: float = 0.0
+    high: float = 0.0
+
+
+def _percentile(values: list[float], fraction: float) -> float:
+    """Linear-interpolated percentile, for the quartile band."""
+    ordered = sorted(values)
+    if not ordered:
+        return 0.0
+    position = fraction * (len(ordered) - 1)
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+
+# The chart's own coordinate system. Drawn at this size and scaled by CSS, so
+# the numbers below are whatever reads well rather than pixels on any screen.
+CHART_WIDTH = 720
+CHART_HEIGHT = 210
+CHART_LEFT = 66      # room for the price labels
+CHART_RIGHT = 10
+CHART_TOP = 12
+CHART_BOTTOM = 26    # room for the dates
+
+
+@dataclass
+class TrendChart:
+    """Ready-to-draw geometry for the median-price chart.
+
+    Computed here rather than in the template: the old chart was a polyline
+    whose points were worked out in Jinja, which is why it had no scale, no
+    points and nothing to read a value off.
+    """
+
+    dots: list = field(default_factory=list)   # one per day: x, y, and its point
+    line: str = ""                             # polyline points for the median
+    band: str = ""                             # polygon points for the quartile band
+    ticks: list = field(default_factory=list)  # price gridlines: value and y
+    width: int = CHART_WIDTH
+    height: int = CHART_HEIGHT
+    left: int = CHART_LEFT
+    right: int = CHART_WIDTH - CHART_RIGHT
+
+
+def _trend_chart(points: list) -> Optional[TrendChart]:
+    """Turn daily medians into coordinates, or None when there is nothing to draw."""
+    if len(points) < 2:
+        return None
+
+    low = min(p.low for p in points)
+    high = max(p.high for p in points)
+    if high - low < 1:                     # a flat fortnight still needs a scale
+        low, high = low - 1, high + 1
+    span = high - low
+
+    plot_w = CHART_WIDTH - CHART_LEFT - CHART_RIGHT
+    plot_h = CHART_HEIGHT - CHART_TOP - CHART_BOTTOM
+
+    def x_of(index: int) -> float:
+        return round(CHART_LEFT + plot_w * index / (len(points) - 1), 2)
+
+    def y_of(value: float) -> float:
+        return round(CHART_TOP + plot_h * (1 - (value - low) / span), 2)
+
+    dots = [
+        {"x": x_of(i), "y": y_of(p.median), "point": p}
+        for i, p in enumerate(points)
+    ]
+    line = " ".join(f"{d['x']},{d['y']}" for d in dots)
+    # Up along the top of the band, back along the bottom: one closed shape.
+    tops = [f"{x_of(i)},{y_of(p.high)}" for i, p in enumerate(points)]
+    bottoms = [f"{x_of(i)},{y_of(p.low)}" for i, p in reversed(list(enumerate(points)))]
+    band = " ".join(tops + bottoms)
+
+    ticks = [
+        {"value": value, "y": y_of(value)}
+        for value in (high, (high + low) / 2, low)
+    ]
+    return TrendChart(dots=dots, line=line, band=band, ticks=ticks)
 
 
 def _price_on(car, history: dict[int, list[PriceHistory]], moment: datetime):
@@ -1502,7 +1585,13 @@ def _price_trend(cars, history: dict[int, list[PriceHistory]], now: datetime):
 
         if len(prices) >= TREND_MIN_CARS:
             points.append(
-                TrendPoint(day=day, median=_median(prices), cars=len(prices))
+                TrendPoint(
+                    day=day,
+                    median=_median(prices),
+                    cars=len(prices),
+                    low=_percentile(prices, 0.25),
+                    high=_percentile(prices, 0.75),
+                )
             )
 
     return points
@@ -1615,6 +1704,8 @@ def configuration_page(
         "gone": sum(1 for c in changes if c.event.type is EventType.DELISTED),
     }
 
+    trend = _price_trend(cars, history, utcnow())
+
     return _render(
         request,
         "configuration.html",
@@ -1631,7 +1722,8 @@ def configuration_page(
         more_changes=max(0, len(changes) - CONFIG_PAGE_CHANGES),
         week=week,
         summary=_price_summary(cars, history, utcnow()),
-        trend=_price_trend(cars, history, utcnow()),
+        trend=trend,
+        chart=_trend_chart(trend),
     )
 
 

@@ -94,8 +94,15 @@
       <div class="card-meta dim">{{ car | facts }}</div>
       {{ also_in_badge(car) }}
 
+      {#
+        What this tool knows that the listing page does not: how long the car
+        has been up, and how many prices it has carried while it sat there.
+      #}
       <div class="card-foot dim">
-        <span>seen {{ car.first_seen | when }}</span>
+        <span>tracked {{ car.first_seen | tracked }}</span>
+        {% if car.prices | length > 1 %}
+          <span class="card-prices">{{ car.prices | length }} prices</span>
+        {% endif %}
         <button class="expand" title="Price history" data-expands="hist-{{ car.id }}"
                 hx-get="/listing/{{ car.id }}/history"
                 hx-target="#hist-{{ car.id }}"
