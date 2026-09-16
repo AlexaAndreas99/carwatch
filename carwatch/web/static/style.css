@@ -1,0 +1,1032 @@
+/* CarWatch dashboard — deliberately minimal (spec §9).
+   Price DROPS are the money event, so they get the one strong colour. */
+
+:root {
+  --bg: #f7f7f8;
+  --card: #ffffff;
+  --ink: #1a1a1c;
+  --dim: #71717a;
+  --line: #e4e4e7;
+  --accent: #2563eb;
+  --down: #15803d;   /* price drop — good for a buyer */
+  --down-bg: #dcfce7;
+  --up: #b45309;     /* price rise */
+  --warn: #b91c1c;
+  --warn-bg: #fef2f2;
+  --note-bg: #fffbeb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101012; --card: #18181b; --ink: #ededf0; --dim: #a1a1aa;
+    --line: #2a2a30; --accent: #60a5fa;
+    --down: #4ade80; --down-bg: #052e16;
+    --up: #fbbf24; --warn: #f87171; --warn-bg: #2a1215; --note-bg: #241d06;
+  }
+}
+
+* { box-sizing: border-box; }
+
+/* Links are otherwise styled per context (.crumb a, .grid a, .topbar nav a...),
+   which leaves any plain prose link — the ones in empty states, and the
+   sentence linking a source page back to its merged view — at the browser's
+   default blue, unreadable on the dark palette. Every contextual rule below is
+   more specific, so this only catches the links nothing else claims. */
+a { color: var(--accent); }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ---------------------------------------------------------------- chrome */
+
+.topbar {
+  display: flex; align-items: center; gap: 1.5rem;
+  padding: .75rem 1.5rem;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 10;
+}
+.brand { font-weight: 600; text-decoration: none; color: var(--ink); }
+.topbar nav { display: flex; gap: 1rem; }
+.topbar nav a { color: var(--dim); text-decoration: none; padding: .15rem 0; }
+.topbar nav a:hover { color: var(--ink); }
+.topbar nav a.on { color: var(--ink); border-bottom: 2px solid var(--accent); }
+
+/* The Changes tab's count of changes you have not seen yet. */
+.nav-badge {
+  display: inline-block; min-width: 1.15rem; margin-left: .35rem; padding: 0 .3rem;
+  border-radius: 999px; background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 1.15rem; text-align: center;
+  font-variant-numeric: tabular-nums; vertical-align: 1px;
+}
+.nav-badge:empty { display: none; }
+
+/* On the Changes page, what had arrived since your last visit. */
+.feed-row.unseen { box-shadow: inset 3px 0 0 var(--accent); }
+.unseen-tag { color: var(--accent); font-weight: 600; }
+
+/* Widened along with the sidebar, so giving the configuration list room did
+   not come out of the cars beside it. */
+main { max-width: 1320px; margin: 0 auto; padding: 1.5rem; }
+
+footer {
+  max-width: 1320px; margin: 0 auto; padding: 1rem 1.5rem 3rem;
+  color: var(--dim); font-size: 12px;
+}
+
+code {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 4px; padding: .1rem .35rem; font-size: 12px;
+}
+
+/* ------------------------------------------------------------- page head */
+
+.page-head { margin-bottom: 1.25rem; }
+.page-head h1 { font-size: 1.35rem; margin: .2rem 0 .35rem; font-weight: 600; }
+.crumb { margin: 0; font-size: 12px; }
+.crumb a { color: var(--dim); text-decoration: none; }
+.crumb a:hover { color: var(--accent); }
+.totals { margin: 0 0 .5rem; color: var(--dim); }
+.totals strong { color: var(--ink); }
+.site-tag {
+  font-size: .75em; font-weight: 500; color: var(--dim);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: .1rem .5rem; vertical-align: middle;
+}
+
+.meta { margin: .4rem 0; display: flex; flex-wrap: wrap; gap: .35rem; }
+.chip {
+  font-size: 12px; color: var(--dim);
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 999px; padding: .12rem .55rem;
+}
+.chip.link { color: var(--accent); text-decoration: none; }
+
+.banner {
+  margin: .6rem 0 0; padding: .5rem .75rem; border-radius: 6px;
+  border: 1px solid var(--line); font-size: 13px;
+}
+.banner-note { background: var(--note-bg); }
+.banner-warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+
+/* ---------------------------------------------------------------- groups */
+
+.search-group { margin-bottom: 2rem; }
+.search-group h2 { font-size: 1rem; font-weight: 600; margin: 0 0 .4rem; }
+
+/* ---------------------------------------------------------------- tables */
+
+.grid {
+  width: 100%; border-collapse: collapse;
+  background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px;
+  overflow: hidden;
+}
+.grid th, .grid td {
+  text-align: left; padding: .5rem .7rem;
+  border-bottom: 1px solid var(--line);
+}
+.grid thead th {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--dim); font-weight: 600; background: var(--bg);
+  white-space: nowrap;
+}
+.grid tbody tr:last-child td { border-bottom: 0; }
+.grid tbody tr:hover { background: var(--bg); }
+.grid .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.grid .strong { font-weight: 600; }
+.grid a { color: var(--accent); text-decoration: none; }
+.grid a:hover { text-decoration: underline; }
+
+.listings .title { max-width: 30rem; }
+.listings .price { font-weight: 600; }
+
+tr.muted td, .grid.muted td { color: var(--dim); }
+.grid.muted .title a { color: var(--dim); }
+
+.note-row td {
+  background: var(--bg); font-size: 12px; color: var(--dim);
+  padding-top: .35rem; padding-bottom: .45rem;
+}
+.note-label {
+  text-transform: uppercase; font-size: 10px; letter-spacing: .05em;
+  font-weight: 700; margin-right: .4rem;
+}
+
+th a.sort { color: var(--dim); text-decoration: none; white-space: nowrap; }
+th a.sort:hover { color: var(--ink); }
+th a.sort.on { color: var(--ink); }
+.caret { margin-left: .2rem; font-size: 9px; }
+
+/* ---------------------------------------------------------------- values */
+
+.down { color: var(--down); font-weight: 600; }
+.up   { color: var(--up); }
+.dim  { color: var(--dim); }
+.warn { color: var(--warn); font-weight: 600; }
+
+/* Price drops are the reason this tool exists — make them unmissable. */
+.listings td .down {
+  background: var(--down-bg);
+  border-radius: 4px; padding: .1rem .4rem;
+}
+
+.tag {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--dim); border: 1px solid var(--line);
+  border-radius: 4px; padding: 0 .3rem; margin-left: .4rem;
+}
+
+.status {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .03em; border-radius: 4px; padding: .1rem .4rem;
+  border: 1px solid var(--line);
+}
+.status-ok       { color: var(--down); border-color: currentColor; }
+.status-blocked,
+.status-error    { color: var(--warn); border-color: currentColor; }
+.status-partial  { color: var(--up); border-color: currentColor; }
+.status-never-run { color: var(--dim); }
+
+/* --------------------------------------------------------------- filters */
+
+.filters { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .9rem; }
+.filters input {
+  background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: .35rem .6rem; font: inherit; font-size: 13px;
+}
+.filters input[type="search"] { min-width: 16rem; }
+.filters input[type="number"] { width: 8.5rem; }
+.filters button {
+  background: var(--accent); color: #fff; border: 0;
+  border-radius: 6px; padding: .35rem .9rem; font: inherit;
+  font-size: 13px; cursor: pointer;
+}
+.filters .clear { align-self: center; color: var(--dim); font-size: 12px; }
+
+.btn {
+  display: inline-block; font-size: 12px;
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: .15rem .55rem; text-decoration: none;
+  /* Set explicitly: an <a class="btn"> otherwise takes the browser's default
+     link blue, which is unreadable on the dark palette and does not match the
+     <button class="btn"> beside it. */
+  background: var(--card); color: var(--ink); font-family: inherit;
+  line-height: 1.5; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ----------------------------------------------------------------- misc */
+
+.empty {
+  background: var(--card); border: 1px dashed var(--line);
+  border-radius: 8px; padding: 2rem; text-align: center; color: var(--dim);
+}
+.empty p { margin: .3rem 0; }
+
+.delisted { margin-top: 2rem; }
+.delisted h2 { font-size: 1rem; font-weight: 600; margin: 0 0 .4rem; }
+
+/* Wide tables scroll inside their own container at EVERY width. Gating this
+   behind a max-width media query left a gap: between roughly 690px and the
+   width where all 8 columns fit, the table pushed the whole PAGE sideways
+   (and the query itself can miss by the scrollbar width). */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-wrap .grid { min-width: max-content; }
+
+@media (max-width: 700px) {
+  main { padding: 1rem; }
+}
+
+/* ===================================================================
+   Phase 6 — Run now, changes feed, price-history charts
+   =================================================================== */
+
+/* ------------------------------------------------------------ run now */
+
+.topbar .run-all { margin-left: auto; }
+.inline-form { display: inline; }
+
+.btn-run {
+  background: var(--accent); color: #fff; border: 0;
+  border-radius: 6px; padding: .35rem .8rem;
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.btn-run.small { font-size: 12px; padding: .18rem .6rem; }
+.btn-run:hover { filter: brightness(1.08); }
+.btn-run:disabled { opacity: .5; cursor: default; }
+
+.run-strip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+  max-width: 1200px; margin: .75rem auto 0; padding: .55rem .9rem;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card); font-size: 13px;
+}
+.run-strip.running { background: var(--note-bg); }
+.run-strip.good    { border-color: var(--down); }
+.run-strip.bad     { border-color: var(--warn); background: var(--warn-bg); }
+.run-strip .sep    { color: var(--line); }
+.run-strip .accent { color: var(--accent); font-weight: 600; }
+.run-strip .mono   { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.run-strip .btn    { margin-left: .25rem; }
+
+.run-problem {
+  flex-basis: 100%; display: flex; gap: .5rem; align-items: baseline;
+  padding-top: .35rem; border-top: 1px solid var(--line); font-size: 12px;
+}
+
+.spinner {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--accent);
+  animation: spin .7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; border-top-color: var(--line); }
+}
+
+/* -------------------------------------------------------- changes feed */
+
+.filter-chip {
+  font-size: 12px; text-decoration: none; color: var(--dim);
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 999px; padding: .2rem .7rem;
+}
+.filter-chip:hover { color: var(--ink); }
+.filter-chip.on { color: var(--ink); border-color: var(--accent); font-weight: 600; }
+
+/* Set apart from the type chips: it answers "what am I not being shown",
+   which is a different question from "which kind of change". */
+.baseline-chip { margin-left: auto; font-style: italic; }
+@media (max-width: 700px) { .baseline-chip { margin-left: 0; } }
+
+.filters select {
+  background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: .35rem .6rem; font: inherit; font-size: 13px;
+}
+
+.feed { list-style: none; margin: 0; padding: 0; }
+
+.feed-row {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr auto 5rem;
+  gap: .75rem; align-items: center;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; padding: .55rem .8rem; margin-bottom: .4rem;
+}
+/* A price drop is the money event — give it the only tinted row. */
+.feed-price_down { border-left: 3px solid var(--down); background: var(--down-bg); }
+.feed-price_up   { border-left: 3px solid var(--up); }
+.feed-new        { border-left: 3px solid var(--accent); }
+.feed-delisted   { border-left: 3px solid var(--line); }
+.feed-delisted .feed-title { color: var(--dim); text-decoration: line-through; }
+
+.feed-badge {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .03em; text-align: center;
+  border-radius: 4px; padding: .15rem .4rem; white-space: nowrap;
+}
+.badge-price_down { color: var(--down); border: 1px solid currentColor; }
+.badge-price_up   { color: var(--up);   border: 1px solid currentColor; }
+.badge-new        { color: var(--accent); border: 1px solid currentColor; }
+.badge-delisted   { color: var(--dim);  border: 1px solid var(--line); }
+
+.feed-title { color: var(--ink); text-decoration: none; font-weight: 500; }
+.feed-title:hover { color: var(--accent); }
+.feed-meta { font-size: 12px; }
+.feed-meta a { color: var(--dim); }
+
+.feed-price { text-align: right; white-space: nowrap; }
+.feed-delta { display: block; font-weight: 700; }
+.feed-delta .pct { font-weight: 400; font-size: 11px; }
+.feed-prices { display: block; font-size: 12px; }
+.feed-when { text-align: right; font-size: 12px; }
+
+@media (max-width: 700px) {
+  .feed-row { grid-template-columns: 1fr auto; }
+  .feed-badge { grid-column: 1; justify-self: start; }
+  .feed-when  { grid-column: 2; }
+  .feed-main  { grid-column: 1 / -1; }
+  .feed-price { grid-column: 1 / -1; text-align: left; }
+}
+
+/* ------------------------------------------------------- price history */
+
+.expand {
+  background: none; border: 0; cursor: pointer; color: var(--dim);
+  font-size: 11px; padding: 0 .35rem 0 0; line-height: 1;
+  transition: transform .12s ease; display: inline-block;
+}
+.expand:hover { color: var(--ink); }
+.expand.open { transform: rotate(90deg); }
+
+.history-row td { background: var(--bg); padding: .8rem 1rem; }
+.history-stats { font-size: 12px; color: var(--dim); margin-bottom: .5rem; }
+.history-stats strong { color: var(--ink); }
+.history-canvas { height: 200px; position: relative; }
+
+/* ===================================================================
+   Listings page — market tabs, card grid, compact rows
+   (front-end plan §7)
+
+   One accent, one signal colour: blue carries interaction, green is
+   reserved for price drops. A drop gets a corner flag and a green left
+   border and nothing else competes for it.
+   =================================================================== */
+
+/* ------------------------------------------------------------------ tabs */
+
+.tabs {
+  display: flex; align-items: center; gap: .35rem;
+  margin: .1rem 0 .6rem;
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  color: var(--dim); text-decoration: none;
+  padding: .35rem .8rem; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; font-weight: 500;
+}
+.tab:hover { color: var(--ink); }
+.tab.on { color: var(--ink); border-bottom-color: var(--accent); }
+.tab-count {
+  font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums;
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 999px; padding: 0 .4rem; margin-left: .15rem;
+}
+.tab.on .tab-count { color: var(--ink); }
+
+.view-toggle { margin-left: auto; display: flex; gap: 2px; padding-bottom: .3rem; }
+.view-toggle button {
+  background: var(--card); color: var(--dim); cursor: pointer;
+  border: 1px solid var(--line); border-radius: 6px;
+  font: inherit; font-size: 13px; line-height: 1; padding: .3rem .5rem;
+}
+.view-toggle button:hover { color: var(--ink); }
+.view-toggle button.on { color: var(--accent); border-color: var(--accent); }
+
+/* Only one of the two views is ever rendered now — the server picks it from
+   the `carwatch-view` cookie — so there is nothing left to hide here. */
+
+/* ------------------------------------------------------------ card grid */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: .9rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.card:hover { border-color: var(--accent); }
+/* The money event. Nothing else on a card gets a colour this strong. */
+.card-drop { border-left-color: var(--down); }
+.card-drop:hover { border-left-color: var(--down); }
+
+.card-photo-link { display: block; position: relative; text-decoration: none; }
+
+/* A fixed 4:3 box with object-fit: cover, so wildly mixed source aspect
+   ratios can't make the grid ragged. */
+.card-photo {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* The placeholder sits underneath and only shows through when there is no
+   photo — 17 of 47 olx cards have none, and a delisted car's hot-linked
+   photo eventually 404s. */
+.photo-fallback {
+  position: absolute; font-size: 2rem; opacity: .18; filter: grayscale(1);
+  pointer-events: none;
+}
+.card-photo img + .photo-fallback,
+.row-photo img + .photo-fallback { display: none; }
+
+.card-sources {
+  position: absolute; left: .5rem; bottom: .5rem;
+  display: flex; gap: .25rem;
+}
+.src {
+  font-size: 10px; font-weight: 700; letter-spacing: .04em;
+  padding: .1rem .35rem; border-radius: 3px;
+  background: rgba(0, 0, 0, .68); color: #fff;
+  backdrop-filter: blur(2px);
+}
+
+.drop-flag {
+  position: absolute; right: 0; top: 0;
+  background: var(--down); color: #fff;
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  padding: .18rem .5rem; border-bottom-left-radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  .drop-flag { color: #04120a; }
+}
+
+.card-body { padding: .6rem .7rem .5rem; display: flex; flex-direction: column; gap: .3rem; }
+
+.card-title {
+  color: var(--ink); text-decoration: none; font-weight: 500; line-height: 1.3;
+  /* Two lines, then ellipsis: titles range from "Nissan Qashqai" to a full
+     spec line, and letting them run makes every card a different height. */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card-title:hover { color: var(--accent); }
+
+.card-price { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.card-price strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+
+.card-meta { font-size: 12px; }
+
+.card-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; margin-top: auto; padding-top: .25rem;
+}
+.card-history:not([hidden]) {
+  border-top: 1px solid var(--line); margin-top: .4rem; padding-top: .5rem;
+}
+
+/* ------------------------------------------------------------ sparkline */
+
+/* A real price trace, not decoration — only drawn with 2+ observations. */
+.spark { color: var(--dim); flex: none; vertical-align: middle; }
+.spark-down { color: var(--down); }
+
+/* ------------------------------------------------ under-median marker */
+
+.ref-marker {
+  font-size: 10px; font-weight: 600; letter-spacing: .02em;
+  color: var(--dim); border: 1px solid var(--line);
+  border-radius: 3px; padding: .05rem .3rem; white-space: nowrap;
+  cursor: help;
+}
+
+/* --------------------------------------------------------- compact rows */
+
+/* 104x78 rather than the 64px the plan first called for: at 64 the photo was
+   too small to actually tell two silver Qashqais apart, which is the only job
+   a thumbnail has here. Still 4:3, still well short of the card grid. The
+   changes feed keeps 64 - see its own rule below. */
+.thumb-cell { width: 104px; padding: .35rem .5rem; }
+.row-photo {
+  position: relative;
+  width: 104px; height: 78px; border-radius: 4px; overflow: hidden;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+}
+.row-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.row-photo .photo-fallback { font-size: 1.6rem; }
+
+.sources-cell { white-space: nowrap; }
+.sources-cell .src {
+  background: transparent; color: var(--dim);
+  border: 1px solid var(--line); font-size: 9px;
+}
+.row-drop td:first-child { box-shadow: inset 3px 0 0 var(--down); }
+
+.section-head { font-size: 1rem; font-weight: 600; margin: 2rem 0 .2rem; }
+
+@media (max-width: 700px) {
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .tabs { flex-wrap: wrap; }
+  .view-toggle { margin-left: 0; }
+}
+
+/* ------------------------------------------------------------- toolbar */
+
+/* A plain GET form: the query string is the state, so every filtered view
+   is a link you can keep. */
+.toolbar { align-items: center; gap: .4rem; margin: .3rem 0 .6rem; }
+.toolbar input[type="search"] { min-width: 13rem; }
+.toolbar input[type="number"] { width: 6.5rem; }
+
+/* From/to pairs read as one control rather than two loose boxes. */
+.field-pair { display: flex; }
+.field-pair input:first-child {
+  border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0;
+}
+.field-pair input:last-child {
+  border-top-left-radius: 0; border-bottom-left-radius: 0;
+}
+.toolbar select { max-width: 14rem; }
+
+/* -------------------------------------------- changes feed, with photos */
+
+/* Thumbnail column added ahead of the badge, so the feed reads the same way
+   as the compact listing rows. */
+.feed-row { grid-template-columns: 64px 5.5rem 1fr auto 5rem; }
+.feed-photo-link { display: block; text-decoration: none; }
+/* The feed stays at 64: its rows are events, not cars to compare, and a
+   taller row would cost more of the "what changed" list per screen. */
+.feed-row .row-photo { width: 64px; height: 48px; }
+
+/* The feed's own source badge is a quiet outline, like the compact rows —
+   the coloured badge in the feed belongs to the event, not the site. */
+.feed-meta .src {
+  background: transparent; color: var(--dim);
+  border: 1px solid var(--line); font-size: 9px;
+  vertical-align: middle;
+}
+
+@media (max-width: 700px) {
+  .feed-row { grid-template-columns: 64px 1fr auto; }
+  .feed-photo-link { grid-row: span 2; }
+  .feed-badge { justify-self: start; }
+  .feed-main  { grid-column: 1 / -1; }
+  .feed-price { grid-column: 1 / -1; text-align: left; }
+}
+
+/* ------------------------------------------------------- configurations */
+
+/* A permanent left column on Listings and Changes (configurations plan §5).
+   `main`'s max-width is the page, so the sidebar lives inside it and the
+   content column takes what's left rather than the sidebar pushing the grid
+   off the right edge. */
+.with-sidebar {
+  display: grid;
+  /* 280 rather than the 220 the plan sketched: at 220 every configuration
+     name ended in an ellipsis, and a list you cannot read the entries of is a
+     poor way to choose between them. */
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.sidebar {
+  position: sticky; top: 4.25rem;   /* clears the sticky topbar */
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: .6rem;
+}
+.sidebar-head { display: flex; align-items: center; justify-content: space-between; }
+.sidebar-head h2 {
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--dim); margin: .15rem .25rem .5rem;
+}
+.btn-new {
+  color: var(--dim); text-decoration: none; font-size: 16px; line-height: 1;
+  padding: 0 .35rem .2rem; border-radius: 5px;
+}
+.btn-new:hover { color: var(--accent); background: var(--bg); }
+
+.sidebar-filter {
+  width: 100%; margin-bottom: .4rem;
+  padding: .3rem .45rem; font: inherit; font-size: 12px;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--bg); color: var(--ink);
+}
+
+.config-list { list-style: none; margin: 0; padding: 0; }
+
+/* The row is one target — it scopes the page — plus a small ⚙ at the end that
+   opens the configuration. */
+.config-row {
+  display: flex; align-items: center; gap: .2rem;
+  border-radius: 5px; font-size: 13px;
+}
+.config-row:hover { background: var(--bg); }
+.config-row.on { background: var(--bg); font-weight: 600; box-shadow: inset 2px 0 0 var(--accent); }
+.config-row.archived .config-name { color: var(--dim); font-style: italic; }
+
+.config-link {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: .45rem;
+  padding: .35rem .1rem .35rem .45rem; border-radius: 5px;
+  color: var(--ink); text-decoration: none;
+}
+.config-link:hover .config-name { color: var(--accent); }
+
+/* Truncate rather than wrap: a 40-character name must not make every row in
+   the sidebar three lines tall. The full name is in the title attribute. */
+.config-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Also the scope control, so it gets a real hit area and a border on hover
+   rather than looking like the label it used to be. */
+.config-count {
+  color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  padding: .2rem .4rem; margin-right: .25rem;
+  border: 1px solid transparent; border-radius: 999px;
+}
+/* The link version carries a border at rest, not only on hover: the number
+   alone reads as a label, and nothing would suggest it is the thing that
+   filters the page. The plain span on pages with nothing to scope keeps the
+   transparent border, so the two line up. */
+.config-row.on .config-count { color: var(--accent); }
+
+/* Opens the configuration's page. Always there, if quiet — a control that only
+   appears on hover does not exist on a touch screen. "All" gets an empty one so
+   every count lines up. */
+.config-open {
+  flex: none; width: 1.6rem; align-self: stretch;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--dim); opacity: .55; font-size: 13px; text-decoration: none;
+  border-radius: 5px;
+}
+.config-row:hover .config-open, .config-open:focus-visible { opacity: 1; }
+a.config-open:hover { color: var(--accent); background: var(--card); }
+
+/* The health dot. Amber is the point of it: a configuration returning nothing
+   because the site quietly relaxed its search used to look exactly like a
+   healthy one. */
+.dot {
+  flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--dim);
+}
+.dot-ok   { background: var(--down); }
+.dot-warn { background: var(--up); }
+.dot-bad  { background: var(--warn); }
+.dot-none { background: var(--line); border: 1px solid var(--dim); }
+
+.sidebar-toggle {
+  display: block; margin: .5rem .25rem .15rem;
+  color: var(--dim); font-size: 12px; text-decoration: none;
+}
+.sidebar-toggle:hover { color: var(--accent); }
+
+/* Below ~900px the column becomes a chip row above the content, so a narrow
+   window keeps the cars readable rather than squeezing them into a gutter. */
+@media (max-width: 900px) {
+  .with-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { position: static; padding: .5rem; }
+  .sidebar-head { display: none; }
+  .config-list { display: flex; flex-wrap: wrap; gap: .3rem; }
+  .config-row { flex: none; border: 1px solid var(--line); border-radius: 999px; }
+  .config-row.on { box-shadow: none; border-color: var(--accent); }
+  .config-link { padding: .25rem .1rem .25rem .6rem; }
+  .config-name { max-width: 14rem; }
+  .sidebar-toggle { display: inline-block; margin: .35rem .25rem 0; }
+}
+
+/* ------------------------------------------------ the configuration page */
+
+.section-head {
+  display: flex; align-items: baseline; gap: .75rem;
+  font-size: 1rem; font-weight: 600; margin: 1.75rem 0 .5rem;
+}
+.section-link { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--dim); text-decoration: none; }
+.section-link:hover { color: var(--accent); }
+
+/* The week's figures. A row of plain numbers rather than a chart: at this size
+   a chart would be decoration, and the numbers are what you act on. */
+.summary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: .75rem;
+}
+.stat {
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  padding: .65rem .8rem; display: flex; flex-direction: column; gap: .15rem;
+}
+.stat-label {
+  font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--dim);
+}
+.stat-value { font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat-note { font-size: 12px; }
+
+.page-head h1 .dot { display: inline-block; vertical-align: middle; margin-right: .4rem; }
+.page-head h1 .tag { vertical-align: middle; margin-left: .4rem; }
+
+tr.muted td { opacity: .55; }
+.inline-form { display: inline; }
+
+/* ------------------------------------------- the configuration form (§7) */
+
+.actions { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0; }
+
+.config-form { max-width: 760px; }
+.config-form fieldset {
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card); padding: .9rem 1rem 1.1rem; margin: 0 0 1rem;
+}
+.config-form legend {
+  font-size: 11px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--dim); padding: 0 .35rem;
+}
+
+.field { display: flex; flex-direction: column; gap: .2rem; }
+.field > span { font-size: 12px; color: var(--dim); text-transform: capitalize; }
+/* Selects too, or the one choice field in the form sits half a centimetre
+   shorter than the boxes beside it in the browser's own styling. */
+.field input, .field select {
+  font: inherit; padding: .4rem .5rem;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--bg); color: var(--ink);
+  width: 100%;
+}
+.field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.field.wide { flex: 1; min-width: 0; }
+.field.check { flex-direction: row; align-items: center; gap: .5rem; }
+.field.check > span { text-transform: none; color: var(--ink); }
+.field-note { font-size: 12px; margin: .35rem 0 .6rem; }
+
+.field-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: .6rem;
+}
+
+.source-row { display: flex; align-items: flex-end; gap: .5rem; margin-top: .6rem; }
+.source-row .field > span { text-transform: none; }
+.test-url { white-space: nowrap; }
+
+/* The URL test's answer. Deliberately as loud for "found nothing" as for an
+   error: a silent zero is the failure this button exists to catch. */
+.test-result:not(:empty) {
+  margin: .4rem 0 .2rem; padding: .5rem .7rem;
+  border: 1px solid var(--line); border-left-width: 3px; border-radius: 6px;
+  background: var(--bg);
+}
+.test-line { margin: .15rem 0; font-size: 13px; }
+.test-line.ok { color: var(--down); }
+.test-line.warn { color: var(--up); }
+.test-line.bad { color: var(--warn); }
+.test-sample { margin: .4rem 0 0; padding-left: 1.1rem; font-size: 12px; }
+.test-sample-title { margin-right: .4rem; }
+
+.form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+
+.banner-bad { border-color: var(--warn); background: var(--warn-bg); }
+
+/* htmx toggles this class while a request from the button is in flight. */
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator, .htmx-indicator.htmx-request { display: inline-block; }
+
+/* -------------------------------------------- price trend, and "also in" */
+
+/* Inline SVG rather than a chart library: this is always on screen, and
+   fourteen points do not justify loading Chart.js on every page view. */
+.trend { color: var(--accent); }
+.trend svg {
+  width: 100%; height: 90px; display: block;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  padding: .25rem 0;
+}
+.trend-axis {
+  display: flex; justify-content: space-between;
+  font-size: 12px; color: var(--ink); margin-top: .25rem;
+}
+
+/* Two configurations describing the same car used to be invisible. */
+.also-in { display: block; font-size: 11px; color: var(--dim); margin-top: .2rem; }
+.also-in a { color: var(--dim); }
+.also-in a:hover { color: var(--accent); }
+.sources-cell .also-in { margin-top: .25rem; }
+
+/* A heading that is also a link: it should read as the heading, not as a link
+   with the browser's default colour and underline. */
+h1 a.plain { color: inherit; text-decoration: none; }
+h1 a.plain:hover { color: var(--accent); }
+
+/* A site's standing rules, shown beside the box you paste into. Quieter than a
+   test result — this is what is true before you type anything, not a verdict on
+   what you typed. */
+.rule-note { font-size: 12px; margin: .3rem 0 0; color: var(--dim); }
+.rule-note .dim { display: block; }
+.rule-blocked { color: var(--warn); }
+.rule-warn { color: var(--up); }
+
+/* ------------------------------------------------ collections, collapsed */
+
+/* One <details> per collection on the Changes feed. Native rather than a JS
+   toggle: it works with find-in-page, needs no script, and keeps its state. */
+.run-group {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: .6rem;
+}
+.run-group > summary {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  padding: .55rem .8rem;
+  cursor: pointer; user-select: none;
+  border-radius: 8px;
+}
+.run-group > summary:hover { background: var(--bg); }
+.run-group[open] > summary { border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; }
+.run-when { font-weight: 600; font-variant-numeric: tabular-nums; }
+.run-tally { display: flex; gap: .5rem; font-size: 12px; font-weight: 600; }
+.run-sites { display: flex; gap: .25rem; }
+/* Pushed to the right, so every row's count lines up down the page. */
+.run-count { margin-left: auto; font-size: 12px; }
+.run-group .feed { margin: 0; padding: .4rem .5rem; }
+
+@media (max-width: 700px) {
+  .run-count { margin-left: 0; }
+}
+
+/* --------------------------------------------------------- the run picker */
+
+/* "Run all now" plus a caret that opens a per-configuration picker. The button
+   keeps its one-click behaviour; the caret is for the times you want one. */
+.run-all { margin-left: auto; display: flex; align-items: stretch; gap: 1px; }
+.run-all > form { display: flex; }
+.run-all .btn-run { border-radius: 6px 0 0 6px; }
+
+.run-menu { position: relative; }
+.run-menu > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  border-radius: 0 6px 6px 0;
+  display: flex; align-items: center;
+  padding-left: .45rem; padding-right: .45rem;
+}
+.run-menu > summary::-webkit-details-marker { display: none; }
+
+.run-menu-body {
+  position: absolute; right: 0; top: calc(100% + .4rem); z-index: 20;
+  min-width: 240px; padding: .6rem;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+.run-menu:not([open]) .run-menu-body { display: none; }
+
+.run-choices { list-style: none; margin: 0 0 .5rem; padding: 0; }
+.run-choices label {
+  display: flex; align-items: center; gap: .45rem;
+  padding: .25rem .3rem; border-radius: 5px; cursor: pointer; font-size: 13px;
+}
+.run-choices label:hover { background: var(--bg); }
+.run-choice-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ------------------------------------------------------- number fields */
+
+/* No spinner arrows. Every number in this app is a price, a year or a
+   mileage — values you type, not values you nudge: stepping a price by 1 EUR
+   is meaningless, and the arrows eat enough width from the paired from/to
+   boxes to make them look broken.
+
+   Still `type="number"`, so a phone offers a numeric keypad and the browser
+   keeps non-numeric input out. `inputmode` on the field reinforces that. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* A from/to pair should read as one control rather than two boxes that happen
+   to touch. The shared edge is the second field's left border. */
+.field-pair input { min-width: 0; }
+.field-pair input:focus { position: relative; z-index: 1; }
+
+/* ------------------------------------------------ reading a pasted link */
+
+/* What a pasted link filled in, under its box. Collapses when empty. */
+.link-read:empty { display: none; }
+.link-read { margin: -.2rem 0 .3rem; }
+
+/* -------------------------------------------------------------- delete */
+
+/* Quiet on the configuration page — it is one link among several, and only
+   on an archived configuration — but never mistakable for the others. */
+.btn.danger { color: var(--warn); }
+.btn.danger:hover { border-color: var(--warn); color: var(--warn); }
+
+.btn-danger {
+  background: var(--warn); color: #fff; border: 0;
+  border-radius: 6px; padding: .35rem .8rem;
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.btn-danger:hover { filter: brightness(1.08); }
+
+.delete-box {
+  max-width: 760px; margin-top: 1rem; padding: .8rem 1rem;
+  border: 1px solid var(--warn); border-radius: 8px; background: var(--warn-bg);
+}
+.delete-box p { margin: .3rem 0; }
+.delete-list { margin: .3rem 0 .7rem; padding-left: 1.2rem; }
+.delete-list li { margin: .15rem 0; }
+.delete-box .form-actions { margin-top: .8rem; }
+
+/* ------------------------------------------------------------ favorites */
+
+/* Inline — the delisted table, which has no photo to sit on. */
+.fav-toggle {
+  background: none; border: 0; padding: 0 .2rem; margin: 0;
+  font: inherit; font-size: 16px; line-height: 1;
+  color: var(--dim); cursor: pointer;
+}
+.fav-toggle:hover { color: #eab308; }
+.fav-toggle.on { color: #eab308; }
+.fav-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* On a photo: a dark round badge in the top-left corner, readable on any
+   picture. Unstarred it stays quiet until you are on the card; starred it is
+   always plain to see. */
+.card { position: relative; }
+.thumb-cell { position: relative; }
+.card > .fav-toggle,
+.thumb-cell > .fav-toggle {
+  position: absolute; z-index: 2;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: rgba(15, 15, 18, .55);
+  backdrop-filter: blur(3px);
+  color: #fff;
+  transition: opacity .15s, transform .15s, background .15s;
+}
+.card > .fav-toggle { top: .5rem; left: .5rem; width: 32px; height: 32px; font-size: 18px; }
+.thumb-cell > .fav-toggle { top: .6rem; left: .75rem; width: 24px; height: 24px; font-size: 14px; }
+.card > .fav-toggle:not(.on),
+.thumb-cell > .fav-toggle:not(.on) { opacity: .7; }
+.card:hover > .fav-toggle,
+tr:hover .thumb-cell > .fav-toggle { opacity: 1; }
+.card > .fav-toggle:hover,
+.thumb-cell > .fav-toggle:hover { transform: scale(1.1); background: rgba(15, 15, 18, .75); color: #fde047; }
+.card > .fav-toggle.on,
+.thumb-cell > .fav-toggle.on { color: #facc15; opacity: 1; }
+
+/* On Favorites an unstarred car stays where it is until the page reloads — so
+   a slip is one click to undo — but fades, so it is plainly no longer one. */
+.favorites-page .card:has(.fav-toggle:not(.on)),
+.favorites-page tr:has(.fav-toggle:not(.on)) { opacity: .45; }
+
+.orphans ul { list-style: none; padding: 0; margin: .4rem 0; }
+.orphans li { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .3rem 0; }
+
+/* ------------------------------------------------------------- schedule */
+
+.schedule-panel {
+  max-width: 760px; margin: 1rem 0 1.5rem; padding: .8rem 1rem;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+}
+.schedule-panel .section-head { margin-top: 0; }
+
+/* The top bar's next-run line. It takes over pushing "Run all now" to the
+   right, so it is always rendered — empty when there is no schedule. */
+.next-run {
+  margin-left: auto;
+  font-size: 12px; color: var(--dim); text-decoration: none; white-space: nowrap;
+}
+a.next-run:hover { color: var(--accent); }
+/* Even-width digits, so a ticking countdown does not shuffle the top bar. */
+.countdown { font-variant-numeric: tabular-nums; }
+.topbar .next-run + .run-all { margin-left: 0; }
+.schedule-now { font-size: 13px; margin: .2rem 0; }
+.schedule-form { display: grid; gap: .45rem; margin: .7rem 0 .4rem; }
+.schedule-form label { display: flex; align-items: center; gap: .45rem; font-size: 13px; }
+.schedule-form input[type="time"],
+.schedule-form select {
+  font: inherit; padding: .2rem .4rem;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--bg); color: var(--ink);
+}

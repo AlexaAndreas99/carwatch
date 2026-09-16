@@ -1,0 +1,28 @@
+{#
+  What a link just pasted into a site's box reads as (`/config/read-link`).
+
+  The name box, when it was empty, arrives out of band so the form is never
+  re-rendered around the box you are pasting into. The rest is shown, not
+  filled in: the description is read off the links when you save.
+#}
+
+{% if name %}
+  <input type="text" name="name" id="field_name" value="{{ name }}" required placeholder="Nissan Qashqai 2024+ (any trim)" hx-swap-oob="outerHTML">
+{% endif %}
+
+{% if found_site != site %}
+  <p class="test-line warn">
+    ⚠
+    {% if found_site %}
+      That URL is from {{ found_site | site_label }} — paste it in the {{ found_site | site_label }} box.
+    {% else %}
+      That URL is not from {{ site | site_label }}.
+    {% endif %}
+  </p>
+{% elif read %}
+  <p class="test-line dim">
+    · Reads as
+    {% for key, value in read.items() %}<span class="chip">{{ key | replace('_', ' ') }}: {{ value }}</span>{% endfor %}
+    {%- if name %} — name filled in{% endif %}
+  </p>
+{% endif %}

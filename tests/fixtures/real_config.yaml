@@ -1,0 +1,125 @@
+# CarWatch configuration
+# ----------------------
+#
+# The searches below are the ones actually being tracked. The database they
+# feed is the only copy of their price history, and it is worth something only
+# because it has been collected into repeatedly - so edit these when your
+# requirements change, not to make a test convenient.
+#
+# Nothing about Nissan, Qashqai, these year ranges, or these particular filters
+# is baked into the code. The tool tracks any make/model/year/price across any
+# subset of the three sites, purely from the search URLs pasted here - so adding
+# or replacing a search is a config change and never a code change.
+#
+# The `sources[].url` fields are the ONLY thing you must fill in yourself.
+# For each site: open it in your browser, set your filters (Nissan / Qashqai /
+# 2025 / 4x4 / Tekna / max price), run the search, then COPY THE URL FROM THE
+# ADDRESS BAR and paste it below, replacing the PASTE_URL_HERE placeholder.
+# That pasted URL already encodes your filters — the tool just paginates it.
+
+settings:
+  db_path: "./carwatch.db"
+  request_delay_seconds: [1.5, 4.0]   # random pause between page requests (politeness)
+  delist_after_missed_runs: 1         # bump to 2 if you see listings flicker in/out
+  user_agent: "CarWatch/1.0 (personal use)"
+
+  # If a site blocks us, leave it alone for this many hours instead of asking
+  # again on the next run. Backing off is politer, and avoids turning a
+  # temporary block into a hardened one. 0 disables it.
+  blocked_cooldown_hours: 12
+
+  # Per-site pacing. mobile.de is by far the heaviest source here (173 listings
+  # over ~9 pages, versus 1-2 pages for the others) and is the one site we
+  # collect against robots.txt, so it gets a noticeably gentler cadence: ~9
+  # pages at 5-12s is roughly a minute and a half of very light traffic, once a
+  # day. Nothing about the tool depends on it finishing quickly.
+  per_site:
+    mobilede:
+      request_delay_seconds: [5.0, 12.0]
+
+searches:
+  - name: "Nissan Qashqai 2025 4x4 Tekna"
+    # --- metadata below is for display/grouping only; real filtering lives in the URLs ---
+    make: "Nissan"
+    model: "Qashqai"
+    trim: "Tekna"
+    drivetrain: "4x4"        # AWD / ALL-MODE 4x4-i — the rarer config, expect few hits
+    year_min: 2025
+    year_max: 2025           # tip: widen to 2024 to catch the facelift + more listings
+    price_max: 30000
+    currency: "EUR"          # standard for RO car listings; change to RON if you meant lei
+    enabled: true
+
+    sources:
+      # AUTOVIT — build/test this adapter first (best-structured site).
+      # How to get the URL: autovit.ro → Nissan → Qashqai → set An (year) 2025,
+      # Cutie automată if you want, Tracțiune 4x4, Versiune/Tekna, Preț până la 30000,
+      # then copy the address-bar URL here.
+      - site: "autovit"
+        url: "https://www.autovit.ro/autoturisme/nissan/qashqai/de-la-2025/q-tekna?search%5Bfilter_enum_fuel_type%5D=petrol&search%5Bfilter_enum_gearbox%5D=automatic&search%5Bfilter_enum_transmission%5D=all-wheel-auto&search%5Badvanced_search_expanded%5D=true"
+
+      # OLX — same idea on olx.ro under Autoturisme → Nissan Qashqai, apply filters,
+      # copy the resulting URL.
+      - site: "olx"
+        url: "https://www.olx.ro/auto-masini-moto-ambarcatiuni/autoturisme/nissan/?currency=EUR&search%5Bfilter_float_price:to%5D=30000&search%5Bfilter_enum_model%5D%5B0%5D=qashqai&search%5Bfilter_float_year:from%5D=2025"
+
+      # MOBILE.DE/RO — hardest to scrape (build last, treat as best-effort).
+      # Set filters on mobile.de/ro and paste the search URL. If it gets blocked,
+      # the dashboard will just show this source as "blocked" and the other two
+      # keep working.
+      # MOBILE.DE - the Romanian search app on www.mobile.de.
+      #
+      # Get this URL the same way as the others: search on mobile.de/ro, then
+      # copy the address bar. It must be a /ro/vehicule/cautare.html URL - the
+      # /ro/automobil/... SEO pages look similar but carry no ad ids, and the
+      # German suchen.mobile.de host is behind Akamai and returns 403.
+      #
+      # Note: mobile.de's robots.txt disallows this path. You accepted that risk
+      # for personal, low-volume use. CarWatch stays polite regardless - one run
+      # a day, randomized delays, honest User-Agent, no anti-bot circumvention.
+      - site: "mobilede"
+        url: "https://www.mobile.de/ro/vehicule/c%C4%83utare.html?isSearchRequest=true&s=Car&vc=Car&fr=2025&ms=18700%3B47&pw=110%3A147&tr=AUTOMATIC_GEAR&dt=ALL_WHEEL&ref=dsp"
+
+  # ---------------------------------------------------------------------------
+  # Wider comparison search. The strict 2025/4x4/Tekna search above is currently
+  # empty on autovit (the site relaxes it rather than admitting zero results),
+  # so this one is what actually carries data: Qashqai, 2024 or newer, any trim
+  # and drivetrain. ~40 active listings, which is also the price-history and
+  # delisting signal the strict search can't give you yet.
+  # ---------------------------------------------------------------------------
+  - name: "Nissan Qashqai 2024+ (any trim)"
+    make: "Nissan"
+    model: "Qashqai"
+    year_min: 2024
+    currency: "EUR"
+    enabled: true
+
+    sources:
+      # No price filter in this URL on purpose: autovit's robots.txt disallows
+      # URLs matching *_price*, so a price-capped autovit search URL would be
+      # off-limits to fetch. Filter by price in the dashboard instead.
+      - site: "autovit"
+        url: "https://www.autovit.ro/autoturisme/nissan/qashqai/de-la-2024"
+
+      - site: "olx"
+        url: "https://www.olx.ro/auto-masini-moto-ambarcatiuni/autoturisme/nissan/?currency=EUR&search%5Bfilter_enum_model%5D%5B0%5D=qashqai&search%5Bfilter_float_year:from%5D=2024"
+
+# ------------------------------------------------------------------------------
+# Want to also track the front-wheel-drive Tekna (far more listings, often
+# cheaper), or a wider year range as a comparison? Add a second search block:
+#
+#   - name: "Nissan Qashqai 2024-2025 Tekna (any drivetrain)"
+#     make: "Nissan"
+#     model: "Qashqai"
+#     trim: "Tekna"
+#     year_min: 2024
+#     year_max: 2025
+#     price_max: 30000
+#     currency: "EUR"
+#     enabled: true
+#     sources:
+#       - site: "autovit"
+#         url: "PASTE_URL_HERE"
+#       - site: "olx"
+#         url: "PASTE_URL_HERE"
+# ------------------------------------------------------------------------------

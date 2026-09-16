@@ -1,0 +1,79 @@
+{#
+  The result of "Test this URL" (configurations plan §7).
+
+  Written to answer one question honestly: would this URL collect anything?
+  A count of zero is reported as loudly as an error, because a URL that
+  silently returns nothing is the commonest way a configuration fails — and
+  the reason it usually returns nothing is the relaxation note below.
+
+  The site-rule notes come first and can stop the fetch entirely: if a URL is
+  one CarWatch will not ask a site for, the honest thing is to say so without
+  asking (see `carwatch/site_rules.py`).
+#}
+
+{% set r = result %}
+{% set stopped = r.notes | selectattr('blocking') | list %}
+
+{% for note in r.notes %}
+  <p class="test-line {{ 'bad' if note.level == 'blocked' else ('warn' if note.level == 'warn' else 'dim') }}">
+    {% if note.level == 'blocked' %}✕{% elif note.level == 'warn' %}⚠{% else %}·{% endif %}
+    <strong>{{ note.summary }}</strong>
+  </p>
+  {% if note.detail %}<p class="test-line dim">{{ note.detail }}</p>{% endif %}
+{% endfor %}
+
+{% if stopped %}
+  <p class="test-line dim">Nothing was requested from {{ r.site | site_label }}.</p>
+
+{% elif r.error %}
+  <p class="test-line bad">✕ {{ r.error }}</p>
+
+{% elif r.blocked %}
+  <p class="test-line bad">
+    ✕ <strong>{{ r.site | site_label }} blocked the request.</strong> {{ r.blocked }}
+  </p>
+  <p class="test-line dim">
+    The URL may still be fine. A collection would record this source as blocked
+    and leave the others working.
+  </p>
+
+{% elif r.relaxed %}
+  {#
+    autovit widens a search it would otherwise answer with zero and returns
+    cars that do not match. The adapter discards them, so the true count is
+    zero — and it is worth saying why, because the URL looks perfectly good.
+  #}
+  <p class="test-line warn">
+    ⚠ <strong>{{ r.site | site_label }} relaxed this search</strong>
+    {%- if r.rule %} ({{ r.rule }}){% endif %} and returned results that do not
+    match it. Those were discarded, so this URL would collect
+    <strong>{{ r.found }}</strong> car{{ '' if r.found == 1 else 's' }}.
+  </p>
+  <p class="test-line dim">
+    Widen the search on the site itself — a year range or a trim it has nothing
+    for is the usual cause.
+  </p>
+
+{% elif r.found == 0 %}
+  <p class="test-line warn">
+    ⚠ Parsed fine, but this URL matches <strong>nothing</strong> right now.
+  </p>
+  <p class="test-line dim">
+    That may be a true answer about the market. It is also what a too-narrow
+    search looks like, so it is worth checking on the site before saving.
+  </p>
+
+{% elif r.found is defined %}
+  <p class="test-line ok">
+    ✓ Would collect <strong>{{ r.found }}</strong> listing{{ '' if r.found == 1 else 's' }}
+    from {{ r.site | site_label }} <span class="dim">(first page only — nothing was saved)</span>
+  </p>
+  <ul class="test-sample">
+    {% for title, price, currency, year in r.sample %}
+      <li>
+        <span class="test-sample-title">{{ title }}</span>
+        <span class="dim">{{ year or '—' }} · {{ price | price(currency) }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}

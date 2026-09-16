@@ -1,0 +1,122 @@
+{#
+  The schedule panel on the Runs page (`/schedule`).
+
+  Fetched after the page loads — on Windows it asks Task Scheduler through
+  PowerShell, which takes a moment — and swapped in place when saved. What it
+  shows is read back from the system scheduler every time: the registration
+  is the setting, so there is nothing here that can drift from what will run.
+#}
+{% set s = status.schedule %}
+<section class="schedule-panel" id="schedule-panel">
+  <h2 class="section-head">Schedule</h2>
+
+  {% if error %}
+    <div class="banner banner-bad"><p><strong>Not saved.</strong> {{ error }}</p></div>
+  {% endif %}
+  {% if message %}
+    <p class="test-line ok">✓ {{ message }}</p>
+  {% endif %}
+
+  {% if not status.supported %}
+    <p class="dim">
+      Scheduling from here works on Windows and macOS. On this system,
+      <code>./schedule.sh --at 08:00</code> installs a cron entry instead — see the README.
+    </p>
+  {% else %}
+    <p class="schedule-now">
+      {% if s.is_on %}
+        <strong>{{ s.describe() }}</strong>, each run starting up to {{ jitter }}
+        minutes late at random <span class="dim">· via {{ status.system }}</span>
+      {% else %}
+        <strong>Off.</strong> CarWatch collects only when you press Run.
+      {% endif %}
+    </p>
+    {% if s.is_on %}
+      {#
+        A run under way knows its minute — it wrote it down when it picked
+        its random delay — so say that rather than the window.
+      #}
+      {% if status.current %}
+        <p class="schedule-now">
+          <strong>A scheduled run is under way</strong> — started
+          {{ status.current.started.strftime('%H:%M') }},
+          {% set at = status.current.collect_at.strftime('%H:%M') -%}
+          <span class="countdown" data-countdown="{{ seconds }}"
+                data-before="collecting at {{ at }}, in"
+                data-after="collecting for">
+          {%- if status.current.collecting(now) %}collecting now.
+          {%- else %}collecting at {{ at }} after its random delay.{% endif -%}
+          </span>
+        </p>
+      {% elif status.running %}
+        <p class="schedule-now"><strong>A scheduled run is under way.</strong></p>
+      {% endif %}
+
+      {% set w = status.window %}
+      <p class="schedule-now dim">
+        {% if w %}
+          Next run {{ day_label(w[0], now) }} between {{ w[0].strftime('%H:%M') }}
+          and {{ w[1].strftime('%H:%M') }} — the exact minute is picked at random
+          when it starts.
+        {% else %}
+          Next run not known.
+        {% endif %}
+      </p>
+      {% if status.last_result and not status.running %}
+        <p class="schedule-now dim">
+          Last scheduled run
+          {%- if status.last_run %} {{ day_label(status.last_run, now) }} {{ status.last_run.strftime('%H:%M') }}{% endif %}:
+          {{ status.last_result }}
+        </p>
+      {% endif %}
+    {% endif %}
+
+    {% if status.problem %}
+      <div class="banner banner-warn"><p>{{ status.problem }}</p></div>
+    {% endif %}
+    {% for note in status.notes %}
+      <p class="rule-note rule-warn">⚠ {{ note }}</p>
+    {% endfor %}
+    {% if other_config %}
+      <p class="rule-note rule-warn">
+        ⚠ Scheduled runs collect <code>{{ scheduled_config }}</code>, not the
+        config file this dashboard was started with.
+      </p>
+    {% endif %}
+
+    <form class="schedule-form" hx-post="/schedule" hx-target="#schedule-panel"
+          hx-swap="outerHTML" hx-indicator="#schedule-spinner">
+      <label><input type="radio" name="mode" value="off" {{ 'checked' if not s.is_on }}>
+        Off — only when I press Run</label>
+      <label><input type="radio" name="mode" value="daily" {{ 'checked' if s.mode == 'daily' }}>
+        Once a day</label>
+      <label><input type="radio" name="mode" value="hours" {{ 'checked' if s.mode == 'hours' }}>
+        Every
+        <select name="every_hours" aria-label="Hours between runs">
+          {% for n in every_hours %}
+            <option value="{{ n }}" {{ 'selected' if (s.every_hours or 6) == n }}>{{ n }}</option>
+          {% endfor %}
+        </select>
+        hours</label>
+      <label>Starting at <input type="time" name="at" value="{{ s.at }}" required></label>
+      <div class="form-actions">
+        <button type="submit" class="btn-run small">Save schedule</button>
+        <span class="htmx-indicator spinner" id="schedule-spinner"></span>
+      </div>
+    </form>
+
+    <p class="field-note dim">
+      Runs only while this computer is on and you are logged in — the dashboard
+      does not need to be open.
+      {% if status.system == 'launchd' %}
+        A run due while the Mac slept happens when it wakes; one due while it was
+        switched off is skipped.
+      {% else %}
+        A run due while the computer was off or asleep happens as soon as it is
+        back on.
+      {% endif %}
+      Nothing more often than every 6 hours: mobile.de was accepted on the basis
+      of low volume.
+    </p>
+  {% endif %}
+</section>

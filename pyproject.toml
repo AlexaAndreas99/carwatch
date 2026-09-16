@@ -1,0 +1,31 @@
+[project]
+name = "carwatch"
+version = "0.1.0"
+description = "Local used-car listing tracker for autovit.ro, olx.ro and mobile.de/ro"
+requires-python = ">=3.11"
+dependencies = [
+    "PyYAML>=6.0",
+    "ruamel.yaml>=0.18",
+    "SQLModel>=0.0.22",
+    "httpx>=0.27",
+    "selectolax>=0.3.21",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "playwright>=1.47",
+]
+
+[project.optional-dependencies]
+browser = []  # kept for compatibility; playwright is a core dependency now
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["carwatch*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

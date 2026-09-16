@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{#
+  One configuration's page (configurations plan §6).
+
+  The answer to "how is this configuration doing?", which used to be spread
+  across three places: the Runs health table, the Listings search picker, and a
+  note about autovit relaxing a search that nobody was ever going to read.
+
+  It is a summary, not a second Listings page. The cars and the changes are
+  capped and hand off to the real grid and the real feed, which the sidebar
+  already scopes to this configuration.
+#}
+
+{% set c = configuration %}
+
+{# Nothing to scope on this page: selecting opens that configuration. #}
+{% set sidebar_navigates = true %}
+
+{% macro scope_link(path) -%}
+  {{ path }}?config={{ c.slug }}{% if sidebar.show_disabled %}&disabled=1{% endif %}
+{%- endmacro %}
+
+{% block content %}
+
+<div class="with-sidebar">
+{% include "partials/sidebar.html" %}
+<div class="scoped">
+
+<div class="page-head">
+  <p class="crumb"><a href="/">Listings</a> › Configuration</p>
+
+  <h1>
+    <span class="dot dot-{{ c.health }}" title="{{ c.health_title }}"></span>
+    {{ c.name }}
+    {% if not c.enabled %}<span class="tag">archived</span>{% endif %}
+  </h1>
+
+  {#
+    Archive first, delete second. Archiving stops collection and keeps every
+    listing and price observation; Delete is offered only on an archived
+    configuration, and goes to a page that counts what it would destroy — so
+    losing history always takes two decisions, never one click.
+  #}
+  <div class="actions">
+    <a class="btn" href="/config/{{ c.slug }}/edit">Edit</a>
+    <a class="btn" href="/config/new?duplicate={{ c.slug }}">Duplicate</a>
+    <a class="btn" href="/config/{{ c.slug }}/export">Export YAML</a>
+    {% if c.enabled %}
+      <form method="post" action="/config/{{ c.slug }}/archive" class="inline-form">
+        <button type="submit" class="btn">Archive</button>
+      </form>
+    {% else %}
+      <form method="post" action="/config/{{ c.slug }}/restore" class="inline-form">
+        <button type="submit" class="btn">Restore</button>
+      </form>
+      <a class="btn danger" href="/config/{{ c.slug }}/delete">Delete…</a>
+    {% endif %}
+    <form hx-post="/run" hx-target="#run-status" hx-swap="innerHTML" class="inline-form">
+      <input type="hidden" name="config" value="{{ c.slug }}">
+      <button type="submit" class="btn-run small">Run this now</button>
+    </form>
+  </div>
+
+  {% if c.metadata %}
+    <p class="meta">
+      {% for k, v in c.metadata.items() %}<span class="chip">{{ k }}: {{ v }}</span>{% endfor %}
+    </p>
+  {% endif %}
+
+  {% if c.problems %}
+    {#
+      The reason this page exists. A configuration that has quietly returned
+      nothing for four days said nothing about it anywhere.
+    #}
+    <div class="banner">
+      {% for site, why in c.problems %}
+        <p>{% if site %}<strong>{{ site | site_label }}</strong> — {% endif %}{{ why }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+{# ------------------------------------------------------------- sources #}
+
+<h2 class="section-head">Sources</h2>
+<p class="totals">
+  One row per site. This is the health table the Runs page used to carry — it
+  belongs with the configuration it describes.
+</p>
+
+<div class="table-wrap"><table class="grid">
+  <thead>
+    <tr>
+      <th>Site</th><th class="num">Active</th><th>Last run</th>
+      <th class="num">Found</th><th class="num">New</th>
+      <th class="num">Price</th><th class="num">Gone</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in c.sources %}
+    <tr class="{{ 'muted' if not s.search.enabled }}">
+      <td>
+        <a href="/search/{{ s.search.id }}">{{ s.site | site_label }}</a>
+        {% if not s.search.enabled %}<span class="tag">disabled</span>{% endif %}
+      </td>
+      <td class="num strong">{{ s.active_count }}</td>
+      <td>
+        <span class="status status-{{ s.status | replace(' ', '-') }}">{{ s.status }}</span>
+        {% if s.last_run %}<span class="dim">{{ s.last_run.started_at | when }}</span>{% endif %}
+      </td>
+      <td class="num">{{ s.last_run.listings_found if s.last_run else '—' }}</td>
+      <td class="num">{{ s.last_run.new_count if s.last_run else '—' }}</td>
+      <td class="num">{{ s.last_run.price_change_count if s.last_run else '—' }}</td>
+      <td class="num">{{ s.last_run.delisted_count if s.last_run else '—' }}</td>
+      <td>
+        <form hx-post="/run" hx-target="#run-status" hx-swap="innerHTML" class="inline-form">
+          <input type="hidden" name="search_id" value="{{ s.search.id }}">
+          <button type="submit" class="btn-run small">Run</button>
+        </form>
+      </td>
+    </tr>
+    {% if s.problem %}
+    <tr class="note-row">
+      <td colspan="8">
+        <span class="note-label {{ 'dim' if s.health == 'warn' else 'warn' }}">
+          {{ 'note' if s.health == 'warn' else s.status }}
+        </span>
+        {{ s.problem }}
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table></div>
+
+{# --------------------------------------------------------- price summary #}
+
+<h2 class="section-head">This week</h2>
+
+<div class="summary">
+  <div class="stat">
+    <span class="stat-label">Cars</span>
+    <span class="stat-value">{{ summary.cars }}</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Median asking</span>
+    <span class="stat-value">{{ summary.median | price('EUR') }}</span>
+    {% if summary.median_delta is not none %}
+      {#
+        Over the cars present a week ago *and* today. A median across whichever
+        cars happen to be listed would move when the expensive ones sold, and
+        report that as prices falling.
+      #}
+      <span class="stat-note {{ 'down' if summary.median_delta < 0 else 'up' }}">
+        {{ summary.median_delta | delta }} in 7 days
+        <span class="dim">({{ summary.compared }} cars)</span>
+      </span>
+    {% elif summary.cars %}
+      <span class="stat-note dim">not enough history yet for a 7-day comparison</span>
+    {% endif %}
+    {% if summary.left_out %}
+      <span class="stat-note">
+        {% with left_out=summary.left_out %}{% include "partials/left_out.html" %}{% endwith %}
+      </span>
+    {% endif %}
+  </div>
+  <div class="stat">
+    <span class="stat-label">Range</span>
+    <span class="stat-value">
+      {%- if summary.low is not none -%}
+        {{ summary.low | price }}–{{ summary.high | price('EUR') }}
+      {%- else -%}—{%- endif -%}
+    </span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Changes</span>
+    <span class="stat-value">
+      {%- if week.drops %}<span class="down">▼ {{ week.drops }}</span>{% endif -%}
+      {%- if week.rises %} <span class="up">▲ {{ week.rises }}</span>{% endif -%}
+      {%- if not week.drops and not week.rises %}—{% endif -%}
+    </span>
+    <span class="stat-note dim">
+      {{ week.arrivals }} arrived · {{ week.gone }} delisted
+    </span>
+  </div>
+</div>
+
+{# ----------------------------------------------------------- price trend #}
+
+{#
+  "Is this segment getting cheaper?" — the question the whole tool exists to
+  answer, and one that only became answerable once there was a week of history
+  behind it (§9.3).
+
+  Inline SVG rather than Chart.js: this is always on screen, so loading a chart
+  library for a fourteen-point line would cost more than it renders. Days with
+  fewer than a handful of cars are left out — a median over two ads is one
+  seller's opinion, not the market's.
+#}
+{% if trend | length >= 2 %}
+  {% set lows = trend | map(attribute='median') | list %}
+  {% set low = lows | min %}
+  {% set high = lows | max %}
+  {% set span = (high - low) or 1 %}
+
+<h2 class="section-head">
+  Median asking price
+  <span class="section-link">
+    {{ trend | length }} day{{ '' if trend | length == 1 else 's' }} ·
+    {{ trend[-1].cars }} cars today
+  </span>
+</h2>
+
+<div class="trend">
+  <svg viewBox="0 0 100 32" preserveAspectRatio="none" role="img"
+       aria-label="Median asking price over the last {{ trend | length }} days">
+    <polyline fill="none" stroke="currentColor" stroke-width="0.8"
+              stroke-linejoin="round" stroke-linecap="round"
+              points="
+      {%- for p in trend -%}
+        {{ (loop.index0 * 100 / ((trend | length) - 1)) | round(2) }},{{ (28 - 24 * (p.median - low) / span) | round(2) }}
+        {{ ' ' }}
+      {%- endfor -%}"/>
+  </svg>
+  <div class="trend-axis">
+    <span>{{ trend[0].day.strftime('%d %b') }}</span>
+    <span class="dim">{{ low | price }} – {{ high | price('EUR') }}</span>
+    <span>{{ trend[-1].day.strftime('%d %b') }}</span>
+  </div>
+</div>
+{% elif summary.cars %}
+<h2 class="section-head">Median asking price</h2>
+<p class="totals dim">
+  A trend needs a few days of history across at least {{ 3 }} cars. Keep
+  collecting and it will appear here.
+</p>
+{% endif %}
+
+{# ----------------------------------------------------------------- cars #}
+
+<h2 class="section-head">
+  Its cars
+  <a class="section-link" href="{{ scope_link('/') }}">open in Listings ›</a>
+</h2>
+
+{% if not cars %}
+  <div class="empty">
+    <p>Nothing collected for this configuration yet.</p>
+    <p class="dim">
+      {% if c.problems %}
+        See the sources above — that is why.
+      {% else %}
+        Run a collection and its cars will appear here.
+      {% endif %}
+    </p>
+  </div>
+{% else %}
+<div class="table-wrap"><table class="grid listings">
+  <thead>
+    <tr>
+      <th>Title</th><th class="num">Year</th><th class="num">Price</th>
+      <th class="num">Mileage</th><th>Location</th><th>Sources</th><th>First seen</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for car in shown %}
+    <tr>
+      <td class="title">
+        <a href="{{ car.canonical.url }}" target="_blank" rel="noopener">{{ car.canonical.title }}</a>
+      </td>
+      <td class="num">{{ car | year_cell }}</td>
+      <td class="num">
+        {{ car.price | price(car.currency) }}
+        {% if car.delta_since_first %}
+          <span class="{{ 'down' if car.delta_since_first < 0 else 'up' }}">
+            {{ car.delta_since_first | delta }}
+          </span>
+        {% endif %}
+      </td>
+      <td class="num">{{ car.canonical.mileage_km | km }}</td>
+      <td>{{ car.canonical.location or '—' }}</td>
+      <td class="sources-cell">
+        {% for site in car.sites %}<span class="src src-{{ site }}">{{ site | site_label }}</span>{% endfor %}
+      </td>
+      <td class="dim">{{ car.first_seen | when }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+{% if more %}
+  <p class="totals">
+    <a href="{{ scope_link('/') }}">and {{ more }} more ›</a>
+  </p>
+{% endif %}
+{% endif %}
+
+{# -------------------------------------------------------------- changes #}
+
+<h2 class="section-head">
+  Recent changes
+  <a class="section-link" href="{{ scope_link('/changes') }}">open in Changes ›</a>
+</h2>
+
+{% if not changes %}
+  <div class="empty">
+    <p class="dim">Nothing has changed for this configuration in the last 7 days.</p>
+  </div>
+{% else %}
+<ul class="feed">
+  {% for r in changes %}
+  {% set t = r.event.type.value %}
+  <li class="feed-row feed-{{ t }}">
+    <span class="feed-badge badge-{{ t }}">
+      {%- if t == 'price_down' %}▼ drop
+      {%- elif t == 'price_up' %}▲ rise
+      {%- elif t == 'new' %}new
+      {%- else %}delisted{% endif -%}
+    </span>
+    <span class="feed-title">
+      <a href="{{ r.listing.url }}" target="_blank" rel="noopener">{{ r.listing.title }}</a>
+    </span>
+    <span class="feed-meta dim">
+      {% for site in r.sites %}<span class="src src-{{ site }}">{{ site | site_label }}</span>{% endfor %}
+    </span>
+    <span class="feed-price">
+      {%- if r.delta -%}
+        <span class="{{ 'down' if r.delta < 0 else 'up' }}">{{ r.delta | delta }}</span>
+        {{ r.event.new_price | price('EUR') }}
+      {%- else -%}
+        {{ r.listing.price | price(r.listing.currency) }}
+      {%- endif -%}
+    </span>
+    <span class="feed-when dim">{{ r.event.created_at | when }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% if more_changes %}
+  <p class="totals">
+    <a href="{{ scope_link('/changes') }}">and {{ more_changes }} more ›</a>
+  </p>
+{% endif %}
+{% endif %}
+
+</div>{# .scoped #}
+</div>{# .with-sidebar #}
+
+{% endblock %}

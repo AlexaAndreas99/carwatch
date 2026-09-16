@@ -1,0 +1,12 @@
+{#
+  Cars left out of a EUR median because they are priced in another currency.
+
+  Every median and range in the dashboard is EUR-only — folding lei into euros
+  would produce a number that is neither — but leaving them out used to be
+  silent. Pass `left_out` as {currency: count}; renders nothing when empty.
+#}
+{%- if left_out -%}
+  <span class="dim left-out" title="Medians and ranges are in EUR; prices in other currencies are not converted.">
+    ({% for currency, n in left_out.items() %}{{ n }} priced in {{ currency }}{{ ', ' if not loop.last }}{% endfor %} left out)
+  </span>
+{%- endif -%}

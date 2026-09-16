@@ -1,0 +1,23 @@
+{#
+  Market tabs and the card/row toggle.
+
+  Rendered inline by the page, and again out of band by the results fragment:
+  each tab's href carries the current filters, so after you type in the toolbar
+  the tabs have to be rebuilt or switching market would silently drop what you
+  just typed. `oob` is set only by the fragment.
+#}
+<nav class="tabs" id="market-tabs"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
+  {% for tab in tabs %}
+    <a class="tab {{ 'on' if tab.selected }}" href="{{ tab.url }}">
+      {{ tab.label }} <span class="tab-count">{{ tab.count }}</span>
+    </a>
+  {% endfor %}
+  <div class="view-toggle" role="group" aria-label="View">
+    <button type="button" data-view="cards" title="Card grid"
+            class="{{ 'on' if view == 'cards' }}"
+            aria-pressed="{{ 'true' if view == 'cards' else 'false' }}">&#9638;</button>
+    <button type="button" data-view="compact" title="Compact rows"
+            class="{{ 'on' if view == 'compact' }}"
+            aria-pressed="{{ 'true' if view == 'compact' else 'false' }}">&#9776;</button>
+  </div>
+</nav>

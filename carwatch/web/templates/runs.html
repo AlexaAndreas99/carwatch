@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Runs</h1>
+  <p class="totals">
+    {{ totals.searches }} configuration{{ '' if totals.searches == 1 else 's' }} ·
+    {{ totals.sources }} source{{ '' if totals.sources == 1 else 's' }} ·
+    <strong>{{ totals.active }}</strong> active listing{{ '' if totals.active == 1 else 's' }}
+    <span class="dim">before merging</span>
+    {%- if totals.problems %} · <span class="warn">{{ totals.problems }} need attention</span>{% endif %}
+  </p>
+</div>
+
+{# Filled in after the page loads: reading the schedule means asking the
+   system scheduler, and the run log below should not wait for that. #}
+<section class="schedule-panel" id="schedule-panel"
+         hx-get="/schedule" hx-trigger="load" hx-swap="outerHTML">
+  <h2 class="section-head">Schedule</h2>
+  <p class="dim">Checking…</p>
+</section>
+
+{#
+  The per-source health table used to live here. It moved to each
+  configuration's own page (configurations plan §8), which is where "is this
+  configuration collecting?" is actually asked. What is left is the run log:
+  every run, newest first, whatever it belonged to.
+#}
+<p class="totals">
+  Per-source health now lives on each configuration's page —
+  {% for name, slug in config_links %}<a href="/config/{{ slug }}">{{ name }}</a>{{ ', ' if not loop.last }}{% endfor %}.
+</p>
+
+<h2 class="section-head">Run log</h2>
+<p class="totals">Most recent first. Blocked and errored runs are listed here so
+   scraping problems stay visible.</p>
+
+{% if not runs %}
+  <div class="empty"><p>No runs yet. Try <code>python -m carwatch.collect --all</code>.</p></div>
+{% else %}
+<div class="table-wrap"><table class="grid">
+  <thead>
+    <tr>
+      <th>Started</th><th>Configuration</th><th>Site</th><th>Status</th>
+      <th class="num">Found</th><th class="num">New</th>
+      <th class="num">Price</th><th class="num">Gone</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in runs %}
+    <tr>
+      <td class="dim">{{ r.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td><a href="/search/{{ r.search_id }}">{{ names.get(r.search_id, '#' ~ r.search_id) }}</a></td>
+      <td>{{ r.site }}</td>
+      <td><span class="status status-{{ r.status.value }}">{{ r.status.value }}</span></td>
+      <td class="num">{{ r.listings_found }}</td>
+      <td class="num">{{ r.new_count }}</td>
+      <td class="num">{{ r.price_change_count }}</td>
+      <td class="num">{{ r.delisted_count }}</td>
+    </tr>
+    {% if r.error_message %}
+    <tr class="note-row">
+      <td colspan="8">
+        <span class="note-label {{ 'dim' if r.status.value == 'ok' else 'warn' }}">
+          {{ 'note' if r.status.value == 'ok' else r.status.value }}
+        </span>
+        {{ r.error_message }}
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% endblock %}

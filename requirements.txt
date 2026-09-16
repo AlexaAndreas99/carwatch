@@ -1,0 +1,21 @@
+# Phase 1 (skeleton + DB)
+PyYAML>=6.0
+SQLModel>=0.0.22
+
+# Phase 2+ (adapters)
+httpx>=0.27
+selectolax>=0.3.21
+
+# Configurations phase - round-trip YAML so the dashboard can rewrite
+# config.yaml without discarding the comments that are most of that file.
+ruamel.yaml>=0.18
+
+# Phase 4+ (dashboard)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+jinja2>=3.1
+python-multipart>=0.0.9   # FastAPI Form() parsing, used by the "Run now" button
+
+# Browser escalation - required by olx.ro (CloudFront blocks plain HTTP) and
+# likely mobile.de in phase 8. After installing, run: playwright install chromium
+playwright>=1.47

@@ -1,0 +1,27 @@
+{#
+  The next scheduled run, in the top bar of every page (`/schedule/next`).
+
+  A window, not a time: each run starts collecting at a random minute in the
+  twenty after its start, and saying "18:50" would be half true. Once a run
+  has started it knows its minute, and the line says that instead — and asks
+  again every half minute until the run is done, while the browser counts down
+  to that minute and then up from it (see base.html). Otherwise it refreshes
+  every five minutes, so a page left open does not go stale.
+
+  Renders an empty placeholder when there is no schedule: the top bar needs
+  the element to exist either way, to keep "Run all now" on the right.
+#}
+{% if line %}
+<a class="next-run" id="next-run" href="/runs"
+   title="Each scheduled run starts collecting at a random minute within its window"
+   hx-get="/schedule/next" hx-trigger="{{ 'every 30s' if live else 'every 300s' }}" hx-swap="outerHTML">
+  {{- '⟳' if live else '⏱' }}
+  {% if seconds is not none -%}
+    <span class="countdown" data-countdown="{{ seconds }}"
+          data-before="Scheduled run collecting in"
+          data-after="Scheduled run collecting for">{{ line }}</span>
+  {%- else %}{{ line }}{% endif -%}
+</a>
+{% else %}
+<span class="next-run" id="next-run"></span>
+{% endif %}

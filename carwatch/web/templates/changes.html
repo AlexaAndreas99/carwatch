@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{# The sidebar's selection, as it appears in every link this page builds. #}
+{% macro scope() -%}
+  {%- if sidebar.selected %}&config={{ sidebar.selected.slug }}{% endif -%}
+  {%- if sidebar.show_disabled %}&disabled=1{% endif -%}
+{%- endmacro %}
+
+{% macro chip(key, label) %}
+  {%- set on = (type == key) -%}
+  <a class="filter-chip {{ 'on' if on }}"
+     href="?type={{ key }}{{ scope() }}{% if show_baseline %}&baseline=1{% endif %}">
+    {{ label }} <span class="dim">{{ counts[key] }}</span>
+  </a>
+{% endmacro %}
+
+{# Link to this page with the baseline setting flipped, keeping everything else. #}
+{% macro baseline_url() -%}
+  ?type={{ type }}{{ scope() }}{% if not show_baseline %}&baseline=1{% endif %}
+{%- endmacro %}
+
+{% block content %}
+
+<div class="with-sidebar">
+{% include "partials/sidebar.html" %}
+<div class="scoped">
+
+<div class="page-head">
+  <h1>Changes</h1>
+  {% set fresh = rows | selectattr('unseen') | list | length %}
+  <p class="totals">
+    {% if fresh %}
+      <span class="unseen-tag">● {{ fresh }} change{{ '' if fresh == 1 else 's' }}</span>
+      since your last visit, marked like this — newest first.
+    {% else %}
+      What changed, newest first.
+    {% endif %}
+  </p>
+</div>
+
+<div class="filters">
+  {{ chip('all', 'Everything') }}
+  {{ chip('drops', '▼ Price drops') }}
+  {{ chip('prices', 'All price changes') }}
+  {{ chip('new', 'New') }}
+  {{ chip('delisted', 'Delisted') }}
+
+  {#
+    When you start watching a search, every listing on it is "new" — that is the
+    starting position, not a change, and it drowns the feed. Those arrivals are
+    hidden by default, but never silently: the count is always on screen.
+  #}
+  {% if baseline_count %}
+    <a class="filter-chip baseline-chip {{ 'on' if show_baseline }}" href="{{ baseline_url() }}">
+      {%- if show_baseline %}hide{% else %}show{% endif %}
+      {{- ' ' }}{{ baseline_count }} initial listing{{ '' if baseline_count == 1 else 's' -}}
+    </a>
+  {% endif %}
+</div>
+
+{% if not groups %}
+  <div class="empty">
+    {% if baseline_count and not show_baseline %}
+      <p>Nothing has changed yet.</p>
+      <p class="dim">
+        The {{ baseline_count }} listing{{ '' if baseline_count == 1 else 's' }} found on the
+        first run {{ 'is' if baseline_count == 1 else 'are' }} the starting position rather
+        than a change — <a href="{{ baseline_url() }}">show {{ 'it' if baseline_count == 1 else 'them' }}</a>
+        if you want the full log.
+      </p>
+    {% else %}
+      <p>Nothing here yet.</p>
+      <p class="dim">
+        Changes appear after a second collection — the first run has nothing to
+        compare against, so it only records the listings it found.
+      </p>
+    {% endif %}
+  </div>
+{% else %}
+
+{#
+  One collapsible block per collection.
+
+  The feed used to be one flat list of every change ever recorded, which reads
+  fine on the day and becomes a wall after a week. There is no collection id in
+  the database — `collect()` writes one run per search and site and nothing ties
+  them together — so the grouping is reconstructed from run start times (see
+  `_collection_of_run`).
+
+  `<details>` rather than a JS toggle: it collapses without any script, keeps
+  its state while you are on the page, and is what browser find-in-page knows
+  how to open. The newest collection is open, because that is the one you came
+  to look at.
+#}
+{% for g in groups %}
+{% set c = g.counts %}
+{# Every collection with something you have not seen opens, not just the newest. #}
+<details class="run-group" {% if loop.first or g.unseen_count %}open{% endif %}>
+  <summary>
+    <span class="run-when">{{ g.started_at.strftime('%d %b, %H:%M') }}</span>
+    <span class="dim">{{ g.started_at | when }}</span>
+    {% if g.unseen_count %}<span class="unseen-tag">● {{ g.unseen_count }} unseen</span>{% endif %}
+
+    <span class="run-tally">
+      {%- if c.price_down %}<span class="down">&#9660; {{ c.price_down }}</span>{% endif -%}
+      {%- if c.price_up %}<span class="up">&#9650; {{ c.price_up }}</span>{% endif -%}
+      {%- if c.new %}<span class="accent">{{ c.new }} new</span>{% endif -%}
+      {%- if c.delisted %}<span class="dim">{{ c.delisted }} delisted</span>{% endif -%}
+    </span>
+
+    <span class="run-sites">
+      {%- for site in g.sites %}<span class="src src-{{ site }}">{{ site | site_label }}</span>{% endfor -%}
+    </span>
+
+    <span class="run-count dim">{{ g.rows | length }} change{{ '' if g.rows | length == 1 else 's' }}</span>
+  </summary>
+
+<ul class="feed">
+  {% for r in g.rows %}
+  {% set t = r.event.type.value %}
+  <li class="feed-row feed-{{ t }} {{ 'unseen' if r.unseen }}">
+    {# Same photo treatment as the Listings page: hot-linked, lazy, with the
+       neutral placeholder underneath for the ads that carry no image. #}
+    <a class="feed-photo-link" href="{{ r.listing.url }}" target="_blank" rel="noopener">
+      <div class="row-photo">
+        {% if r.listing.image_url %}
+          <img src="{{ r.listing.image_url }}" alt="" loading="lazy" decoding="async"
+               onerror="this.remove();">
+        {% endif %}
+        <span class="photo-fallback" aria-hidden="true">🚗</span>
+      </div>
+    </a>
+
+    <span class="feed-badge badge-{{ t }}">
+      {%- if t == 'price_down' %}▼ drop
+      {%- elif t == 'price_up' %}▲ rise
+      {%- elif t == 'new' %}new
+      {%- else %}delisted{% endif -%}
+    </span>
+
+    <div class="feed-main">
+      <a class="feed-title" href="{{ r.listing.url }}" target="_blank" rel="noopener">
+        {{ r.listing.title }}
+      </a>
+      <div class="feed-meta dim">
+        {%- set text = r.listing | facts -%}
+        {%- if text %}{{ text }} · {% endif -%}
+        {#
+          Every site that reported this change, not just the one we quote. The
+          same drop on a syndicated ad is several event rows; the feed shows it
+          once and names the sources here.
+        #}
+        {%- for site in r.sites %}
+          <span class="src src-{{ site }}">{{ site | site_label }}</span>
+        {%- endfor %}
+        {%- if r.search %} <a href="/search/{{ r.search.id }}">{{ r.search.name }}</a>{% endif %}
+      </div>
+    </div>
+
+    <div class="feed-price">
+      {% if r.delta is not none %}
+        <span class="{{ 'down' if r.delta < 0 else 'up' }} feed-delta">
+          {{ '▼' if r.delta < 0 else '▲' }} {{ r.delta | delta }}
+          {%- if r.pct is not none %} <span class="pct">({{ r.pct | round(1) }}%)</span>{% endif %}
+        </span>
+        <span class="feed-prices dim">
+          {{ r.event.old_price | price }} → <strong>{{ r.event.new_price | price(r.listing.currency) }}</strong>
+        </span>
+      {% elif t == 'delisted' %}
+        <span class="feed-prices dim">last {{ r.event.old_price | price(r.listing.currency) }}</span>
+      {% else %}
+        <span class="feed-prices"><strong>{{ r.event.new_price | price(r.listing.currency) }}</strong></span>
+      {% endif %}
+    </div>
+
+    <div class="feed-when dim">{{ r.event.created_at | when }}</div>
+  </li>
+  {% endfor %}
+</ul>
+</details>
+{% endfor %}
+
+{% endif %}
+
+</div>{# .scoped #}
+</div>{# .with-sidebar #}
+
+{% endblock %}

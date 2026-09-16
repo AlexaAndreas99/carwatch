@@ -1,0 +1,31 @@
+{#
+  Choose what to collect.
+
+  Every box starts ticked, so opening this and pressing Run is the same as
+  pressing "Run all now" — the picker narrows a run, it does not make you
+  assemble one. Ticking everything is treated as "all", so the status strip
+  says "All configurations" rather than listing them.
+
+  Archived configurations are not here: `collect()` skips them however it is
+  asked, so offering one would be offering something that does nothing.
+#}
+{% if not options %}
+  <p class="dim">No configurations are collecting.
+    <a href="/config/new">Add one</a>.</p>
+{% else %}
+<form hx-post="/run" hx-target="#run-status" hx-swap="innerHTML">
+  <ul class="run-choices">
+    {% for c in options %}
+      <li>
+        <label>
+          <input type="checkbox" name="config" value="{{ c.slug }}" checked>
+          <span class="dot dot-{{ c.health }}" title="{{ c.health_title }}"></span>
+          <span class="run-choice-name">{{ c.name }}</span>
+          <span class="dim">{{ c.car_count }}</span>
+        </label>
+      </li>
+    {% endfor %}
+  </ul>
+  <button type="submit" class="btn-run small">Run selected</button>
+</form>
+{% endif %}

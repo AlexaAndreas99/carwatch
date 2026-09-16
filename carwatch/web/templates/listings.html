@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{#
+  The Listings page (front-end plan §6/§7), and the Favorites page, which is
+  this page narrowed to the cars you starred. `page` says which: its `path` is
+  where every link the page builds points, so filtering on Favorites stays on
+  Favorites.
+
+  Only the view in use is rendered. Emitting both and hiding one with CSS made
+  the Germany tab 528KB of HTML for 173 cars — half of it markup nobody was
+  looking at. The preference rides in a cookie so the server can read it;
+  toggling costs one reload, which on localhost is nothing next to 250KB.
+
+  The filtered half of the page lives in `partials/listing_results.html`, which
+  htmx swaps in as you type. The toolbar is deliberately *outside* it, so typing
+  never re-renders the field you are typing in.
+#}
+
+{% from "partials/listing_macros.html" import
+     badges, photo, spark, also_in_badge, under_reference, fav_star with context %}
+
+{% set on_favorites = page.key == 'favorites' %}
+
+{% block content %}
+
+<div class="with-sidebar">
+{% include "partials/sidebar.html" %}
+<div class="scoped{{ ' favorites-page' if on_favorites }}">
+
+<div class="page-head">
+  <h1>{{ page.title }}</h1>
+  {% if on_favorites %}
+    <p class="totals dim">
+      The cars you starred with ☆. Unstarring one fades it until the page
+      reloads, so a slip is one click to undo.
+    </p>
+  {% endif %}
+  {% include "partials/listing_tabs.html" %}
+
+  {#
+    The toolbar. Still a plain GET form, so every filtered view is a URL you can
+    bookmark or paste — the query string *is* the state (§6), and `hx-push-url`
+    keeps that true while filtering live.
+
+    It filters as you type. `input` covers text, number *and* select fields (a
+    select fires `input` before `change`), and a 250ms debounce means one
+    request per pause rather than one per keystroke. Only `#listing-results` is
+    replaced, so the box you are typing in is never re-rendered and never loses
+    the cursor — which a full-page reload could not manage, and which is why
+    filtering used to wait for you to leave the field and feel like it needed an
+    Apply button.
+
+    That button now only exists for browsers without JavaScript.
+  #}
+  <form class="filters toolbar" method="get" action="{{ page.path }}"
+        hx-get="{{ page.path }}" hx-target="#listing-results" hx-swap="innerHTML"
+        {# `submit` too: pressing Enter in a text box fires it, and without it
+           the browser would do a native GET — a full reload, landing on the
+           same page by the untidy URL htmx is here to avoid. #}
+        hx-trigger="input delay:250ms, search, submit"
+        hx-push-url="true" hx-indicator="#filter-spinner">
+    <input type="hidden" name="market" value="{{ market }}">
+    {# The sidebar's selection rides through the toolbar, so applying a filter
+       does not silently drop you back to every configuration. #}
+    {% if filters.config %}<input type="hidden" name="config" value="{{ filters.config }}">{% endif %}
+    {% if filters.disabled %}<input type="hidden" name="disabled" value="1">{% endif %}
+
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="title or location…">
+
+    <span class="field-pair">
+      <input type="number" inputmode="numeric" name="price_min" value="{{ filters.price_min | plain }}" placeholder="price from">
+      <input type="number" inputmode="numeric" name="price_max" value="{{ filters.price_max | plain }}" placeholder="to">
+    </span>
+
+    <span class="field-pair">
+      <input type="number" inputmode="numeric" name="year_min" value="{{ filters.year_min | plain }}" placeholder="year from">
+      <input type="number" inputmode="numeric" name="year_max" value="{{ filters.year_max | plain }}" placeholder="to">
+    </span>
+
+    <input type="number" inputmode="numeric" name="mileage_max" value="{{ filters.mileage_max | plain }}" placeholder="max km">
+
+    <select name="fuel">
+      <option value="">Any fuel</option>
+      {% for option in fuel_options %}
+        <option value="{{ option }}" {% if filters.fuel == option %}selected{% endif %}>{{ option }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="sort">
+      {% for key, label in sorts %}
+        <option value="{{ key }}" {% if filters.sort == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <noscript><button type="submit">Apply</button></noscript>
+    <span class="htmx-indicator spinner" id="filter-spinner"></span>
+
+    {# Swapped out of band by the fragment: whether it belongs here at all
+       depends on the filters it would clear. Clearing clears the filters, not
+       the scope — the sidebar owns that. #}
+    <span id="toolbar-clear">
+      {%- if filters.active or filters.sort != 'newest' -%}
+        <a class="clear" href="{{ page.path }}?market={{ market }}{% if filters.config %}&config={{ filters.config }}{% endif %}{% if filters.disabled %}&disabled=1{% endif %}">clear</a>
+      {%- endif -%}
+    </span>
+  </form>
+
+<div id="listing-results">
+  {% include "partials/listing_results.html" %}
+</div>
+
+{% if delisted %}
+<section class="delisted">
+  <h2>
+    {{ 'Favorites no longer listed' if on_favorites else 'Recently delisted' }}
+    <span class="dim">({{ delisted | length }})</span>
+  </h2>
+  <div class="table-wrap"><table class="grid muted">
+    <thead>
+      <tr><th>Listing</th><th class="num">Year</th><th class="num">Last price</th>
+          <th class="num">Mileage</th><th>Location</th><th>Sources</th><th>Last seen</th></tr>
+    </thead>
+    <tbody>
+      {% for car in delisted %}
+      <tr>
+        <td class="title">
+          {{ fav_star(car) }}
+          <a href="{{ car.canonical.url }}" target="_blank" rel="noopener">{{ car.canonical.title }}</a>
+        </td>
+        <td class="num">{{ car | year_cell }}</td>
+        <td class="num">{{ car.price | price(car.currency) }}</td>
+        <td class="num">{{ car.canonical.mileage_km | km }}</td>
+        <td>{{ car.canonical.location or '—' }}</td>
+        <td class="sources-cell">{{ badges(car) }}</td>
+        <td class="dim">{{ car.last_seen | when }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+{#
+  Favourites whose car has no row left anywhere — the configuration that
+  collected it was deleted. There is no card to unstar, so each gets a button;
+  the title and link are the snapshot taken when it was starred.
+#}
+{% if orphans %}
+<section class="delisted orphans">
+  <h2>No longer tracked <span class="dim">({{ orphans | length }})</span></h2>
+  <p class="totals dim">
+    Starred, but no configuration collects these any more — no price history,
+    just the ad as it was when you starred it.
+  </p>
+  <ul>
+    {% for fav in orphans %}
+      <li>
+        <span class="src src-{{ fav.site }}">{{ fav.site | site_label }}</span>
+        <a href="{{ fav.url }}" target="_blank" rel="noopener">{{ fav.title or fav.site_listing_id }}</a>
+        <span class="dim">starred {{ fav.created_at | when }}</span>
+        <form method="post" action="/favorites/forget" class="inline-form">
+          <input type="hidden" name="site" value="{{ fav.site }}">
+          <input type="hidden" name="site_listing_id" value="{{ fav.site_listing_id }}">
+          <button type="submit" class="btn">Remove</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+</div>{# .scoped #}
+</div>{# .with-sidebar #}
+
+{% endblock %}

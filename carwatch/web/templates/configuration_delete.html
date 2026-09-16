@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{#
+  Deleting a configuration — the only page in CarWatch that removes price
+  history.
+
+  Reached only from an archived configuration's page, so it always takes two
+  decisions: archive, then delete. It counts what will go before asking,
+  because "delete Nissan Juke?" and "delete 212 price observations?" are
+  different questions, and only the second is the real one.
+#}
+
+{% set c = configuration %}
+{% set f = footprint %}
+
+{# Nothing to scope on this page: selecting opens that configuration. #}
+{% set sidebar_navigates = true %}
+
+{% macro plural(n, word) -%}
+  <strong>{{ n }}</strong> {{ word }}{{ '' if n == 1 else 's' }}
+{%- endmacro %}
+
+{% block content %}
+
+<div class="with-sidebar">
+{% include "partials/sidebar.html" %}
+<div class="scoped">
+
+<div class="page-head">
+  <p class="crumb">
+    <a href="/">Listings</a> ›
+    <a href="/config/{{ c.slug }}?disabled=1">{{ c.name }}</a> › Delete
+  </p>
+  <h1>Delete {{ c.name }}?</h1>
+</div>
+
+{% if error %}
+  <div class="banner banner-bad">
+    <p><strong>Not deleted.</strong> {{ error }}</p>
+  </div>
+{% endif %}
+
+{% if c.enabled %}
+  <div class="banner banner-note">
+    <p>
+      It is still collecting. Archive it first — only an archived configuration
+      can be deleted, so nothing is ever lost to one stray click.
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/config/{{ c.slug }}">Back to {{ c.name }}</a>
+  </div>
+
+{% elif only_one %}
+  <div class="banner banner-note">
+    <p>
+      It is the only configuration in <code>{{ config_file }}</code>, and
+      CarWatch needs at least one to load. Create another before deleting this
+      one.
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/config/new">New configuration</a>
+    <a class="btn" href="/config/{{ c.slug }}?disabled=1">Back</a>
+  </div>
+
+{% else %}
+  <div class="delete-box">
+    <p>This removes:</p>
+    <ul class="delete-list">
+      <li>
+        its block in <code>{{ config_file }}</code>
+        {%- if not in_file %} <span class="dim">— already gone from the file</span>{% endif %}
+      </li>
+      <li>
+        {{ plural(f.listings, 'listing') }}
+        {%- if f.active %} <span class="dim">({{ f.active }} still for sale)</span>{% endif %}
+      </li>
+      <li>{{ plural(f.prices, 'price observation') }}</li>
+      <li>{{ plural(f.runs, 'run') }} and {{ plural(f.events, 'change event') }}</li>
+    </ul>
+    <p class="dim">
+      A copy of the whole database is saved first, as
+      <code>{{ db_name }}.bak-&lt;date-time&gt;</code> beside it (the last
+      {{ keep_db_backups }} are kept){% if in_file %}, and
+      <code>{{ config_file }}</code> keeps a timestamped backup too{% endif %}.
+      To undo, stop the dashboard and copy that file back over
+      <code>{{ db_name }}</code> — which also rolls back anything collected
+      since.
+    </p>
+    <p class="dim">
+      Cars that another configuration also found stay under that
+      configuration, with their own history.
+    </p>
+
+    <form method="post" action="/config/{{ c.slug }}/delete" class="form-actions">
+      {# If config.yaml changed since this page was drawn, the delete is refused. #}
+      <input type="hidden" name="stamp" value="{{ stamp }}">
+      <button type="submit" class="btn-danger">Delete</button>
+      <a class="btn" href="/config/{{ c.slug }}?disabled=1">Cancel</a>
+      {% if in_file %}
+        <a class="btn" href="/config/{{ c.slug }}/export">Export YAML first</a>
+      {% endif %}
+    </form>
+  </div>
+{% endif %}
+
+</div>{# .scoped #}
+</div>{# .with-sidebar #}
+
+{% endblock %}

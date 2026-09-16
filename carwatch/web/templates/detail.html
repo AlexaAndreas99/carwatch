@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% macro sort_link(key, label, numeric=false) %}
+  {%- set is_on = (sort == key) -%}
+  {%- set next_dir = 'desc' if (is_on and dir == 'asc') else 'asc' -%}
+  <th class="{{ 'num' if numeric }}">
+    <a class="sort {{ 'on' if is_on }}"
+       href="?sort={{ key }}&dir={{ next_dir }}{% if q %}&q={{ q }}{% endif %}{% if price_max is not none %}&price_max={{ price_max }}{% endif %}{% if year_min is not none %}&year_min={{ year_min }}{% endif %}">
+      {{ label }}{% if is_on %}<span class="caret">{{ '▲' if dir == 'asc' else '▼' }}</span>{% endif %}
+    </a>
+  </th>
+{% endmacro %}
+
+{#
+  The one *unmerged* view: exactly what a single source returned, which is what
+  makes it worth keeping alongside the merged Listings page. So no merging here,
+  but the same photos, sparklines and "New" year cell as everywhere else.
+
+  It is a drill-down from a configuration — one of its sources — so it carries
+  the same sidebar as everywhere else and names the configuration above it. The
+  UI calls the whole thing a configuration and this page one of its *sources*;
+  the database still calls both a `search`, which is why the route is
+  `/search/<id>` and the id is a `search.id`.
+#}
+{% macro thumb(listing) %}
+  <div class="row-photo">
+    {% if listing.image_url %}
+      <img src="{{ listing.image_url }}" alt="" loading="lazy" decoding="async"
+           onerror="this.remove();">
+    {% endif %}
+    <span class="photo-fallback" aria-hidden="true">🚗</span>
+  </div>
+{% endmacro %}
+
+{# One source of one configuration: selecting another opens it rather than
+   filtering this page, which is about a single `search` row. #}
+{% set sidebar_navigates = true %}
+
+{% block content %}
+
+<div class="with-sidebar">
+{% include "partials/sidebar.html" %}
+<div class="scoped">
+
+<div class="page-head">
+  <p class="crumb">
+    <a href="/">Listings</a> ›
+    {%- if configuration %}
+      <a href="/config/{{ configuration.slug }}">{{ configuration.name }}</a> ›
+      {{ search.site | site_label }}
+    {%- else %} {{ search.name }}{% endif %}
+  </p>
+  <h1>
+    {%- if configuration %}
+      <a class="plain" href="/config/{{ configuration.slug }}">{{ configuration.name }}</a>
+    {%- else %}{{ search.name }}{% endif %}
+    <span class="site-tag">{{ search.site | site_label }}</span>
+  </h1>
+  <p class="totals dim">
+    One source, unmerged — exactly what {{ search.site | site_label }} returned, at its own
+    prices. The merged view is on
+    {% if configuration %}<a href="/?config={{ configuration.slug }}">Listings</a>{% else %}Listings{% endif %}.
+  </p>
+  <p class="totals">
+    <strong>{{ stats.total_active }}</strong> active
+    {%- if stats.count != stats.total_active %} · {{ stats.count }} shown{% endif %}
+    {%- if stats.min is not none %} · {{ stats.min | price }}–{{ stats.max | price }}
+      · median {{ stats.median | price('EUR') }}{% endif %}
+    {% with left_out=stats.left_out %}{% include "partials/left_out.html" %}{% endwith %}
+    {%- if stats.drops %} · <span class="down">{{ stats.drops }} below first seen</span>{% endif %}
+  </p>
+  <div class="meta">
+    <a class="chip link" href="{{ search.url }}" target="_blank" rel="noopener">
+      open this search on {{ search.site | site_label }} ↗</a>
+    {% if last_run %}
+      <span class="chip">last run {{ last_run.started_at | when }}
+        <span class="status status-{{ last_run.status.value }}">{{ last_run.status.value }}</span></span>
+    {% endif %}
+    {% if configuration %}
+      <a class="btn" href="/config/{{ configuration.slug }}/edit">Edit this URL</a>
+    {% endif %}
+    <form hx-post="/run" hx-target="#run-status" hx-swap="innerHTML" class="inline-form">
+      <input type="hidden" name="search_id" value="{{ search.id }}">
+      <button type="submit" class="btn-run small">Run this source now</button>
+    </form>
+  </div>
+
+  {#
+    Why this source is not green, in the same words the sidebar's dot and the
+    configuration page use. Stated even when the run succeeded: "found 0" needs
+    the reason beside it, or it reads as a fact about the market rather than
+    about the URL.
+  #}
+  {% if source and source.problem %}
+    <div class="banner {{ 'banner-bad' if source.health == 'bad' else '' }}">
+      <p>{{ source.problem }}</p>
+    </div>
+  {% elif last_run and last_run.error_message %}
+    <div class="banner"><p>{{ last_run.error_message }}</p></div>
+  {% endif %}
+</div>
+
+<form class="filters" method="get" data-autosubmit>
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="dir" value="{{ dir }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="title or location…">
+  <input type="number" inputmode="numeric" name="price_max" value="{{ price_max | plain }}" placeholder="max price">
+  <input type="number" inputmode="numeric" name="year_min" value="{{ year_min | plain }}" placeholder="min year">
+  <noscript><button type="submit">Filter</button></noscript>
+  {% if q or price_max is not none or year_min is not none %}
+    <a class="clear" href="?sort={{ sort }}&dir={{ dir }}">clear</a>
+  {% endif %}
+</form>
+
+{% if not rows %}
+  <div class="empty">
+    <p>No active listings{% if q or price_max is not none or year_min is not none %} match these filters{% endif %}.</p>
+    {% if stats.total_active == 0 and source and source.problem %}
+      <p class="dim">See the note above — this may be the URL rather than the market.</p>
+    {% endif %}
+  </div>
+{% else %}
+<div class="table-wrap"><table class="grid listings">
+  <thead>
+    <tr>
+      <th></th>
+      {{ sort_link('title', 'Listing') }}
+      {{ sort_link('year', 'Year', true) }}
+      {{ sort_link('price', 'Price', true) }}
+      {{ sort_link('change', 'Δ since 1st', true) }}
+      {{ sort_link('mileage', 'Mileage', true) }}
+      <th>Fuel</th>
+      {{ sort_link('location', 'Location') }}
+      {{ sort_link('first_seen', 'First seen') }}
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr class="{{ 'row-drop' if (r.delta_since_first or 0) < 0 }}">
+      <td class="thumb-cell">{{ thumb(r.listing) }}</td>
+      <td class="title">
+        <button class="expand" title="Show price history"
+                data-expands="history-{{ r.listing.id }}"
+                hx-get="/listing/{{ r.listing.id }}/history"
+                hx-target="#history-{{ r.listing.id }}"
+                hx-swap="innerHTML">▸</button>
+        <a href="{{ r.listing.url }}" target="_blank" rel="noopener">{{ r.listing.title }}</a>
+        {% if r.history_points > 1 %}<span class="tag hist">{{ r.history_points }} prices</span>{% endif %}
+      </td>
+      <td class="num">{{ r.listing | year_cell }}</td>
+      <td class="num price">{{ r.listing.price | price(r.listing.currency) }}</td>
+      <td class="num">
+        {% set d = r.delta_since_first %}
+        {% if d is none %}<span class="dim">—</span>
+        {% elif d < 0 %}<span class="down">▼ {{ d | delta }}</span>
+        {% else %}<span class="up">▲ {{ d | delta }}</span>{% endif %}
+        {% set points = r.prices | sparkline %}
+        {% if points %}
+          <svg class="spark {{ 'spark-down' if (d or 0) < 0 }}"
+               viewBox="0 0 {{ SPARK_WIDTH }} {{ SPARK_HEIGHT }}"
+               width="{{ SPARK_WIDTH }}" height="{{ SPARK_HEIGHT }}"
+               role="img" aria-label="{{ r.prices | length }} recorded prices">
+            <polyline points="{{ points }}" fill="none" stroke="currentColor"
+                      stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+        {% endif %}
+      </td>
+      <td class="num">{{ r.listing.mileage_km | km }}</td>
+      <td>{{ r.listing.fuel or '—' }}</td>
+      <td>{{ r.listing.location or '—' }}</td>
+      <td class="dim">{{ r.listing.first_seen | when }}</td>
+    </tr>
+    <tr class="history-row" id="history-row-{{ r.listing.id }}" hidden>
+      <td colspan="9" id="history-{{ r.listing.id }}"></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if delisted %}
+<section class="delisted">
+  <h2>Recently delisted <span class="dim">({{ delisted | length }})</span></h2>
+  <div class="table-wrap"><table class="grid muted">
+    <thead>
+      <tr><th></th><th>Listing</th><th class="num">Year</th><th class="num">Last price</th>
+          <th class="num">Mileage</th><th>Location</th><th>Last seen</th></tr>
+    </thead>
+    <tbody>
+      {% for r in delisted %}
+      <tr>
+        <td class="thumb-cell">{{ thumb(r.listing) }}</td>
+        <td class="title"><a href="{{ r.listing.url }}" target="_blank" rel="noopener">{{ r.listing.title }}</a></td>
+        <td class="num">{{ r.listing | year_cell }}</td>
+        <td class="num">{{ r.listing.price | price(r.listing.currency) }}</td>
+        <td class="num">{{ r.listing.mileage_km | km }}</td>
+        <td>{{ r.listing.location or '—' }}</td>
+        <td class="dim">{{ r.listing.last_seen | when }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+</div>{# .scoped #}
+</div>{# .with-sidebar #}
+
+{% endblock %}

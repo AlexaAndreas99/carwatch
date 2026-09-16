@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · CarWatch</title>
+  <link rel="stylesheet" href="{{ static_url('style.css') }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🚗</text></svg>">
+  {# SRI hash verified against the file cdnjs actually serves for this pinned
+     version. Do not hand-write this value: a wrong digest makes the browser
+     block the script outright, which silently kills every interactive feature
+     on the dashboard. #}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"
+          integrity="sha512-JvpjarJlOl4sW26MnEb3IdSAcGdeTeOaAlu2gUZtfFrRgnChdzELOZKl0mN6ZvI0X+xiX5UMvxjK2Rx2z/fliw=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">🚗 CarWatch</a>
+    <nav>
+      <a href="/" {% if request.url.path == '/' %}class="on"{% endif %}>Listings</a>
+      <a href="/favorites" {% if request.url.path == '/favorites' %}class="on"{% endif %}>Favorites</a>
+      <a href="/changes" {% if request.url.path == '/changes' %}class="on"{% endif %}>Changes
+        {#- How many changes you have not seen. Fetched after the page loads, like
+            the next-run line: no page should wait on it. -#}
+        <span class="nav-badge" id="changes-badge"
+              hx-get="/changes/unseen" hx-trigger="load" hx-swap="outerHTML"></span></a>
+      <a href="/runs" {% if request.url.path == '/runs' %}class="on"{% endif %}>Runs</a>
+    </nav>
+
+    {#
+      "Run all now" stays one click, because it is what you want almost every
+      time. The caret beside it opens a picker for the times you want one
+      configuration — every box there starts ticked, so the default is still
+      all.
+
+      The picker's contents are fetched when it is first opened: the topbar
+      lives here in base.html, which has no database context, and giving every
+      page one just to render a menu nobody opened would be the wrong trade.
+    #}
+    {# When the next scheduled run is — or where the one under way has got to.
+       Fetched after the page loads: asking the system scheduler takes a
+       moment, and no page should wait for it. #}
+    <span class="next-run" id="next-run"
+          hx-get="/schedule/next" hx-trigger="load" hx-swap="outerHTML"></span>
+
+    <div class="run-all">
+      <form hx-post="/run" hx-target="#run-status" hx-swap="innerHTML">
+        <button type="submit" class="btn-run">Run all now</button>
+      </form>
+
+      <details class="run-menu"
+               hx-get="/run/picker" hx-trigger="toggle once"
+               hx-target="find .run-menu-body" hx-swap="innerHTML">
+        <summary class="btn-run caret" title="Choose what to run"
+                 aria-label="Choose what to run">&#9662;</summary>
+        <div class="run-menu-body"><p class="dim">Loading…</p></div>
+      </details>
+    </div>
+  </header>
+
+  <!-- Populated by the Run-now button, and by a poll on load if a job is
+       already in flight (e.g. started from another tab). -->
+  <div id="run-status"
+       hx-get="/run/status" hx-trigger="load" hx-swap="innerHTML"></div>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    Collecting also works from the CLI:
+    <code>python -m carwatch.collect --all</code>.
+  </footer>
+
+  <script>
+    // Self-applying filter forms: no Apply button to reach for.
+    //
+    // This is the fallback path, used by the source page's small filter form.
+    // The Listings toolbar outgrew it: `change` only fires when you leave a
+    // text field, which is what made filtering feel like it needed an Apply
+    // button, and submitting the whole page per keystroke would take the focus
+    // out of the box you are typing in. That toolbar now filters live over
+    // htmx and swaps in only the results — see listings.html.
+    (function () {
+      var FOCUS_KEY = 'carwatch-refocus';
+
+      document.addEventListener('change', function (event) {
+        var form = event.target.closest ? event.target.closest('form[data-autosubmit]') : null;
+        if (!form) return;
+        // The page is about to reload, so remember where the cursor was;
+        // otherwise setting a price and reaching for the next box means
+        // clicking back into the toolbar every time.
+        try {
+          if (event.target.name) sessionStorage.setItem(FOCUS_KEY, event.target.name);
+        } catch (e) {}
+        form.submit();
+      });
+
+      // Put the cursor back in the field that was just changed, at the end of
+      // its text, so tabbing onward still works the way it looks like it should.
+      var name = null;
+      try {
+        name = sessionStorage.getItem(FOCUS_KEY);
+        sessionStorage.removeItem(FOCUS_KEY);
+      } catch (e) {}
+      if (name) {
+        var field = document.querySelector('form[data-autosubmit] [name="' + name + '"]');
+        if (field) {
+          field.focus();
+          if (field.setSelectionRange && field.type !== 'number') {
+            var end = field.value.length;
+            try { field.setSelectionRange(end, end); } catch (e) {}
+          }
+        }
+      }
+    })();
+
+    // Cards or compact rows.
+    //
+    // The server renders only the view in use, so this has to reach the server:
+    // a cookie, not localStorage, which only the browser can read. Toggling
+    // therefore costs a reload — cheap next to the ~250KB of markup that not
+    // rendering the other view saves.
+    (function () {
+      document.addEventListener('click', function (event) {
+        var button = event.target.closest('.view-toggle button');
+        if (!button) return;
+        document.cookie =
+          'carwatch-view=' + button.dataset.view +
+          '; path=/; max-age=31536000; SameSite=Lax';
+        location.reload();
+      });
+    })();
+
+    // The sidebar's filter box. Client-side on purpose: with a handful of
+    // configurations, a round trip to narrow a list already on screen would be
+    // slower than reading it (§5).
+    (function () {
+      document.addEventListener('input', function (event) {
+        var box = event.target.closest ? event.target.closest('[data-filters]') : null;
+        if (!box) return;
+        var list = document.querySelector(box.dataset.filters);
+        if (!list) return;
+        var needle = box.value.trim().toLowerCase();
+        Array.prototype.forEach.call(list.children, function (item, index) {
+          // Never hide "All configurations": it is the way back out.
+          if (index === 0) return;
+          var name = item.textContent.toLowerCase();
+          item.hidden = needle !== '' && name.indexOf(needle) === -1;
+        });
+      });
+    })();
+
+    // Close the run picker once it has started something. Leaving it hanging
+    // open over the status strip it just triggered is the one thing it must
+    // not do.
+    //
+    // Matched on the form inside, not on the menu: the <details> itself fires
+    // this event when it lazily fetches its own contents, and closing on that
+    // shut the menu the instant it opened.
+    (function () {
+      document.body.addEventListener('htmx:afterRequest', function (event) {
+        var form = event.target.closest ? event.target.closest('.run-menu form') : null;
+        if (form) form.closest('.run-menu').open = false;
+      });
+    })();
+
+    // Expanding a listing's price history. One delegated handler rather than an
+    // onclick on every card: at ~120 bytes each that was 20KB on the Germany tab.
+    (function () {
+      document.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-expands]');
+        if (!button) return;
+        var panel = document.getElementById(button.dataset.expands);
+        if (!panel) return;
+        // A table row hides via the <tr>; a card panel hides itself.
+        var target = panel.tagName === 'TD' ? panel.parentElement : panel;
+        target.hidden = !target.hidden;
+        button.classList.toggle('open');
+      });
+    })();
+
+    // A scheduled run under way: "collecting in 12:34", then "collecting for
+    // 0:42". The server says how many seconds were left when it drew the line
+    // and the browser counts from there, so the two clocks never have to
+    // agree; each refresh of the line starts the count afresh.
+    (function () {
+      function clock(seconds) {
+        var s = Math.floor(seconds);
+        return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+      }
+      function tick() {
+        var now = Date.now();
+        document.querySelectorAll('[data-countdown]').forEach(function (el) {
+          if (!el.dataset.seen) el.dataset.seen = now;
+          var left = Number(el.dataset.countdown) - (now - Number(el.dataset.seen)) / 1000;
+          el.textContent = left > 0
+            ? el.dataset.before + ' ' + clock(Math.ceil(left))
+            : el.dataset.after + ' ' + clock(-left);
+        });
+      }
+      setInterval(tick, 1000);
+      // New lines arrive by htmx; count them at once rather than a second late.
+      document.body.addEventListener('htmx:load', tick);
+    })();
+</script>
+</body>
+</html>

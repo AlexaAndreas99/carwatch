@@ -1,0 +1,165 @@
+{#
+  Everything on the Listings page that a filter changes: the totals, and the
+  cars themselves.
+
+  htmx replaces this fragment as you type, which is why it is a fragment at all.
+  Reloading the whole page per keystroke would take the focus out of the box you
+  are typing in; reloading only when you leave the field is what made filtering
+  feel like it needed an Apply button.
+
+  Two things outside the fragment also depend on the filters, so they come back
+  as out-of-band swaps: the market tabs (each carries the filters in its href)
+  and the "clear" link (which should be there only when something is narrowing
+  the list).
+#}
+
+{% from "partials/listing_macros.html" import
+     badges, photo, spark, also_in_badge, under_reference, fav_star with context %}
+
+  <p class="totals">
+    <strong>{{ stats.count }}</strong> car{{ '' if stats.count == 1 else 's' }}
+    {%- if stats.count != stats.total %} <span class="dim">of {{ stats.total }}</span>{% endif %}
+    {%- if stats.min is not none %} · {{ stats.min | price }}–{{ stats.max | price }}
+      · median {{ stats.median | price('EUR') }}{% endif %}
+    {% with left_out=stats.left_out %}{% include "partials/left_out.html" %}{% endwith %}
+    {%- if stats.drops %} · <span class="down">{{ stats.drops }} below first seen</span>{% endif %}
+  </p>
+
+  {% if reference_median %}
+    <p class="meta">
+      <span class="chip">
+        Romanian median {{ reference_median | price('EUR') }} — cars below it are marked.
+        <span class="dim">List prices only: German ads are often pre-VAT and exclude
+        import and registration.</span>
+      </span>
+    </p>
+  {% endif %}
+
+{% if not cars %}
+  <div class="empty">
+    {% if page.key == 'favorites' and not stats.total %}
+      {% if delisted %}
+        <p>None of your {{ market_label }} favorites is still listed.</p>
+        <p class="dim">They are below, with the last price each one had.</p>
+      {% else %}
+        <p>No favorites yet.</p>
+        <p class="dim">Star a car with ☆ on the <a href="/">Listings</a> page and it
+          is kept here — with its price history, and after it sells.</p>
+      {% endif %}
+    {% elif stats.total %}
+      <p>No {{ market_label }} cars match these filters.</p>
+      <p class="dim"><a href="{{ page.path }}?market={{ market }}{% if filters.config %}&config={{ filters.config }}{% endif %}">Clear them</a> to see all
+         {{ stats.total }}.</p>
+    {% else %}
+      <p>Nothing collected for {{ market_label }} yet.</p>
+      <p class="dim">Press <strong>Run all now</strong>, or run
+         <code>python -m carwatch.collect --all</code>.</p>
+    {% endif %}
+  </div>
+{% else %}
+
+{% if view == 'cards' %}
+{# ------------------------------------------------------------- card grid #}
+<div class="card-grid">
+  {% for car in cars %}
+  <article class="card {{ 'card-drop' if car.is_drop }}">
+    {#- On the photo's free corner: the site badges sit bottom-left and the
+        price-drop flag top-right. A sibling of the photo link, not inside it —
+        a button inside an <a> is invalid, and the click would follow the link. #}
+    {{ fav_star(car) }}
+    <a class="card-photo-link" href="{{ car.canonical.url }}" target="_blank" rel="noopener">
+      {{ photo(car, 'card-photo') }}
+      <div class="card-sources">{{ badges(car) }}</div>
+      {% if car.is_drop %}
+        <span class="drop-flag">▼ {{ car.delta_since_first | delta }}</span>
+      {% endif %}
+    </a>
+
+    <div class="card-body">
+      <a class="card-title" href="{{ car.canonical.url }}" target="_blank" rel="noopener">
+        {{ car.canonical.title }}
+      </a>
+
+      <div class="card-price">
+        <strong>{{ car.price | price(car.currency) }}</strong>
+        {{ spark(car) }}
+        {{ under_reference(car) }}
+      </div>
+
+      {#
+        Facts we don't have are left out rather than printed as a dash. A
+        brand-new mobile.de car has neither a registration year nor an odometer
+        reading, and "— · — · Benzină" reads like a rendering fault.
+      #}
+      <div class="card-meta dim">{{ car | facts }}</div>
+      {{ also_in_badge(car) }}
+
+      <div class="card-foot dim">
+        <span>seen {{ car.first_seen | when }}</span>
+        <button class="expand" title="Price history" data-expands="hist-{{ car.id }}"
+                hx-get="/listing/{{ car.id }}/history"
+                hx-target="#hist-{{ car.id }}"
+                hx-swap="innerHTML">▸</button>
+      </div>
+      <div class="card-history" id="hist-{{ car.id }}" hidden></div>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+
+{% else %}
+{# ---------------------------------------------------------- compact rows #}
+<div class="table-wrap compact-list"><table class="grid listings">
+  <thead>
+    <tr>
+      <th></th><th>Listing</th><th class="num">Year</th><th class="num">Price</th>
+      <th class="num">Δ since 1st</th><th class="num">Mileage</th>
+      <th>Location</th><th>Sources</th><th>First seen</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for car in cars %}
+    <tr class="{{ 'row-drop' if car.is_drop }}">
+      <td class="thumb-cell">{{ photo(car, 'row-photo') }}{{ fav_star(car) }}</td>
+      <td class="title">
+        <button class="expand" title="Price history" data-expands="rowhist-{{ car.id }}"
+                hx-get="/listing/{{ car.id }}/history"
+                hx-target="#rowhist-{{ car.id }}"
+                hx-swap="innerHTML">▸</button>
+        <a href="{{ car.canonical.url }}" target="_blank" rel="noopener">{{ car.canonical.title }}</a>
+      </td>
+      <td class="num">{{ car | year_cell }}</td>
+      <td class="num price">
+        {{ car.price | price(car.currency) }}
+        {{ under_reference(car) }}
+      </td>
+      <td class="num">
+        {% set d = car.delta_since_first %}
+        {% if d is none %}<span class="dim">—</span>
+        {% elif d < 0 %}<span class="down">▼ {{ d | delta }}</span>
+        {% else %}<span class="up">▲ {{ d | delta }}</span>{% endif %}
+        {{ spark(car) }}
+      </td>
+      <td class="num">{{ car.canonical.mileage_km | km }}</td>
+      <td>{{ car.canonical.location or '—' }}</td>
+      <td class="sources-cell">{{ badges(car) }}{{ also_in_badge(car) }}</td>
+      <td class="dim">{{ car.first_seen | when }}</td>
+    </tr>
+    <tr class="history-row" hidden><td colspan="9" id="rowhist-{{ car.id }}"></td></tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% endif %}
+
+{% if oob %}
+  {# Rebuilt so switching market keeps what you just typed. #}
+  {% with oob = true %}{% include "partials/listing_tabs.html" %}{% endwith %}
+
+  <span id="toolbar-clear" hx-swap-oob="outerHTML">
+    {%- if filters.active or filters.sort != 'newest' -%}
+      <a class="clear" href="{{ page.path }}?market={{ market }}{% if filters.config %}&config={{ filters.config }}{% endif %}{% if filters.disabled %}&disabled=1{% endif %}">clear</a>
+    {%- endif -%}
+  </span>
+{% endif %}

@@ -1,0 +1,16 @@
+# Line endings, decided here rather than per machine.
+#
+# The Mac scripts must stay LF: bash reads a CRLF shebang line as a filename
+# ending in \r and fails with a message that names no cause. The Windows
+# scripts are the mirror image, so they are pinned to CRLF.
+* text=auto eol=lf
+
+*.sh       text eol=lf
+*.command  text eol=lf
+
+*.bat      text eol=crlf
+*.ps1      text eol=crlf
+
+*.png binary
+*.ico binary
+*.db  binary

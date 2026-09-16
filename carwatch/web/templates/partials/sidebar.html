@@ -1,0 +1,134 @@
+{#
+  The configuration sidebar (configurations plan §5).
+
+  Replaces the two toolbar dropdowns that used to disagree with each other —
+  Listings picked a configuration by name, Changes picked a configuration *and*
+  a site. One selection now, shared by both pages and carried in the URL.
+
+  Selecting an entry does one of two things, depending on the page.
+
+  On Listings and Changes it *scopes in place*: `keep` rebuilds the current URL
+  with a different `config`, so you keep the market tab, the filters and the
+  sort you already had.
+
+  Everywhere else — a configuration's own page, its form, one of its sources —
+  there is nothing to scope, so selecting *navigates* to that configuration.
+  A page opts into that with `{% raw %}{% set sidebar_navigates = true %}{% endraw %}`.
+  Without it those pages would build links like `/search/7?config=juke`, which
+  keeps you exactly where you were.
+#}
+
+{% set navigates = sidebar_navigates | default(false) %}
+
+{% macro keep(slug) -%}
+  {%- if navigates -%}
+    {{- ('/config/' ~ slug) if slug else '/' -}}
+    {{- '?disabled=1' if (slug and sidebar.show_disabled) -}}
+  {%- else -%}
+    {{- keep_scope(slug) -}}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro keep_scope(slug) -%}
+  {%- set pairs = [] -%}
+  {%- for key, value in request.query_params.multi_items() -%}
+    {%- if key not in ('config', 'disabled') -%}
+      {%- set _ = pairs.append(key ~ '=' ~ (value | urlencode)) -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- if slug %}{% set _ = pairs.append('config=' ~ slug) %}{% endif -%}
+  {%- if sidebar.show_disabled %}{% set _ = pairs.append('disabled=1') %}{% endif -%}
+  {{ request.url.path }}{% if pairs %}?{{ pairs | join('&') }}{% endif %}
+{%- endmacro %}
+
+{% macro toggle_disabled() -%}
+  {%- set pairs = [] -%}
+  {%- for key, value in request.query_params.multi_items() -%}
+    {%- if key != 'disabled' -%}
+      {%- set _ = pairs.append(key ~ '=' ~ (value | urlencode)) -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- if not sidebar.show_disabled %}{% set _ = pairs.append('disabled=1') %}{% endif -%}
+  {{ request.url.path }}{% if pairs %}?{{ pairs | join('&') }}{% endif %}
+{%- endmacro %}
+
+<aside class="sidebar" aria-label="Configurations">
+  <div class="sidebar-head">
+    <h2>Configurations</h2>
+    <a class="btn-new" href="/config/new" title="New configuration"
+       aria-label="New configuration">+</a>
+  </div>
+
+  {#
+    Client-side, because with a handful of entries a round trip to filter a
+    list you can already see would be slower than reading it.
+  #}
+  {% if sidebar.listed | length > 6 %}
+    <input type="search" class="sidebar-filter" placeholder="filter…"
+           aria-label="Filter configurations" data-filters=".config-list">
+  {% endif %}
+
+  {#
+    Every row works the same way: the whole row is what you click. On Listings
+    and Changes it scopes — "All configurations" shows everything, a
+    configuration shows its cars — and clicking the row you are scoped to goes
+    back to all. The small ⚙ at the end opens the configuration's own page.
+
+    It used to be split: the name opened the page and the count beside it
+    scoped, so "All" did one thing and every row under it another. The user
+    found that unintuitive (2026-09-13) — a list you click to filter should
+    filter wherever you click it.
+
+    Pages with nothing to scope make the row open the configuration instead,
+    and need no ⚙.
+  #}
+  <ul class="config-list">
+    <li class="config-row {{ 'on' if not sidebar.selected }}">
+      <a class="config-link" href="{{ keep('') }}">
+        <span class="config-name">All configurations</span>
+        <span class="config-count">{{ sidebar.total_cars }}</span>
+      </a>
+      {% if not navigates %}<span class="config-open" aria-hidden="true"></span>{% endif %}
+    </li>
+
+    {% for c in sidebar.listed %}
+      {% set selected = sidebar.selected and sidebar.selected.slug == c.slug %}
+      <li class="config-row {{ 'on' if selected }} {{ 'archived' if not c.enabled }}">
+        {% if navigates %}
+          <a class="config-link" href="/config/{{ c.slug }}" title="Open {{ c.name }}">
+        {% elif selected %}
+          <a class="config-link scoping" href="{{ keep('') }}"
+             title="Showing only {{ c.name }} — click to show all">
+        {% else %}
+          <a class="config-link" href="{{ keep(c.slug) }}"
+             title="Show only {{ c.name }}">
+        {% endif %}
+          {#
+            The health dot. Amber is the one that earns this feature: a
+            configuration that has quietly returned nothing for four days looks
+            identical to a healthy one without it.
+          #}
+          <span class="dot dot-{{ c.health }}" title="{{ c.health_title }}"
+                aria-label="{{ c.health_title }}"></span>
+          <span class="config-name">{{ c.name }}</span>
+          <span class="config-count">{{ c.car_count }}</span>
+        </a>
+        {% if not navigates %}
+          <a class="config-open" href="/config/{{ c.slug }}"
+             title="Open {{ c.name }} — health, sources, edit"
+             aria-label="Open {{ c.name }}">⚙</a>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if sidebar.show_disabled or sidebar.hidden_count %}
+    <a class="sidebar-toggle" href="{{ toggle_disabled() }}">
+      {%- if sidebar.show_disabled -%}
+        hide archived
+      {%- else -%}
+        show {{ sidebar.hidden_count }} archived
+      {%- endif -%}
+    </a>
+  {% endif %}
+</aside>

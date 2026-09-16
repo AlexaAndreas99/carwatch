@@ -1,0 +1,69 @@
+# CarWatch configuration — example
+# --------------------------------
+#
+# Copy this file to `config.yaml` (setup.ps1 / setup.sh do it for you) and fill
+# in the URLs. Nothing about Nissan, Qashqai or these filters is baked into the
+# code: CarWatch tracks whatever you paste here, across any subset of the three
+# sites, so adding or replacing a search is a config change and never a code
+# change.
+#
+# The `sources[].url` fields are the ONLY thing you must fill in yourself.
+# For each site: open it in your browser, set your filters, run the search,
+# then COPY THE URL FROM THE ADDRESS BAR and paste it below, replacing
+# PASTE_URL_HERE. That pasted URL already encodes your filters — CarWatch just
+# paginates it.
+
+settings:
+  db_path: "./carwatch.db"
+  request_delay_seconds: [1.5, 4.0]   # random pause between page requests (politeness)
+  delist_after_missed_runs: 1         # bump to 2 if you see listings flicker in/out
+  user_agent: "CarWatch/1.0 (personal use)"
+
+  # If a site blocks us, leave it alone for this many hours instead of asking
+  # again on the next run. Backing off is politer, and avoids turning a
+  # temporary block into a hardened one. 0 disables it.
+  blocked_cooldown_hours: 12
+
+  # Per-site pacing. mobile.de is by far the heaviest source — nine pages where
+  # the others take one or two — and is the one site collected against
+  # robots.txt, so it gets a noticeably gentler cadence.
+  per_site:
+    mobilede:
+      request_delay_seconds: [5.0, 12.0]
+
+searches:
+  # One block per thing you are shopping for. The name is what the dashboard
+  # calls a "configuration", and it is the identity of the search: renaming it
+  # starts a new price history, so pick one you can live with.
+  - name: "My first search"
+    # --- metadata below is for display/grouping only; real filtering lives in the URLs ---
+    make: "Nissan"
+    model: "Qashqai"
+    year_min: 2024
+    price_max: 30000
+    currency: "EUR"
+    enabled: true
+
+    sources:
+      # AUTOVIT — the best-structured of the three, and the one to test first.
+      - site: "autovit"
+        url: "PASTE_URL_HERE"
+
+      # OLX — needs a real browser (CloudFront blocks plain HTTP requests), which
+      # is why setup installs Chromium.
+      - site: "olx"
+        url: "PASTE_URL_HERE"
+
+      # MOBILE.DE — German market, best-effort. The URL must be a
+      # /ro/vehicule/cautare.html one: the /ro/automobil/... pages look similar
+      # but carry no ad ids, and the German suchen.mobile.de host returns 403.
+      #
+      # Note: mobile.de's robots.txt disallows this path. Collecting it is a
+      # decision you make for personal, low-volume use. CarWatch stays polite
+      # regardless — randomized delays, honest User-Agent, no anti-bot
+      # circumvention — and works fine with this source deleted.
+      - site: "mobilede"
+        url: "PASTE_URL_HERE"
+
+# Delete any source you do not want; a search can pull from one, two or all
+# three sites. Add more searches by repeating the block above.

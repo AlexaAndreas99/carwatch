@@ -1,0 +1,22 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+carwatch.db
+carwatch.db-wal
+carwatch.db-shm
+.pytest_cache/
+.playwright/
+logs/
+
+# Your own configuration and its rotating backups. The repo ships
+# config.example.yaml instead: the search URLs are personal, and a public copy
+# of this file would publish exactly what you are shopping for.
+config.yaml
+config.yaml.bak-*
+
+# Early design scratch, kept on disk but not part of the project.
+carwatch_mock_data.json
+
+# Claude Code's local, per-machine settings.
+.claude/settings.local.json

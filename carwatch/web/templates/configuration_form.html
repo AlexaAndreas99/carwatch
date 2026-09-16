@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{#
+  Create, edit and duplicate a configuration (configurations plan §7).
+
+  This is the only form in CarWatch that writes to disk. Everything it saves
+  goes through `carwatch/config_writer.py`, which round-trips config.yaml so
+  the comments survive, validates the result before replacing the file, and
+  keeps a timestamped backup of what was there.
+
+  `settings:` is deliberately not editable here. Pacing and politeness stay
+  hand-edited, which keeps a bug in this form from being able to change how
+  hard CarWatch hits a site.
+
+  A name and the links, nothing else (2026-09-10). Every source is a URL
+  pasted from the site's own address bar — CarWatch builds none, because a
+  wrong generated URL does not fail, it quietly widens. The display-only
+  description is read off those links when saving, and whether it collects
+  is Archive's and Restore's to say, not this form's.
+#}
+
+{% set editing = original_name != '' %}
+
+{# Nothing to scope on this page: selecting opens that configuration. #}
+{% set sidebar_navigates = true %}
+
+{% block content %}
+
+<div class="with-sidebar">
+{% include "partials/sidebar.html" %}
+<div class="scoped">
+
+<div class="page-head">
+  <p class="crumb">
+    <a href="/">Listings</a> ›
+    {% if editing %}<a href="/config/{{ sidebar.selected.slug }}">{{ original_name }}</a> › Edit
+    {% else %}New configuration{% endif %}
+  </p>
+  <h1>{{ 'Edit configuration' if editing else 'New configuration' }}</h1>
+
+  {% if duplicate_of %}
+    <p class="totals">
+      Copied from <strong>{{ duplicate_of }}</strong>. Saving creates a second
+      configuration; the original is untouched.
+    </p>
+  {% endif %}
+</div>
+
+{% if error %}
+  <div class="banner banner-bad">
+    <p><strong>Not saved.</strong> {{ error }}</p>
+  </div>
+{% endif %}
+
+<form class="config-form" method="post" action="/config/save">
+  {# What the file looked like when this page was rendered. If it has changed
+     since — an editor window, another tab — the save is refused rather than
+     overwriting work you can't get back (§4). #}
+  <input type="hidden" name="stamp" value="{{ stamp }}">
+  <input type="hidden" name="original_name" value="{{ original_name }}">
+  {# So a duplicate keeps the description of what it copied. #}
+  <input type="hidden" name="duplicate_of" value="{{ duplicate_of }}">
+
+  <fieldset>
+    <legend>Name</legend>
+    <label class="field wide">
+      <span>Name</span>
+      <input type="text" name="name" id="field_name" value="{{ draft.name }}" required
+             placeholder="Nissan Qashqai 2024+ (any trim)" autofocus>
+    </label>
+    <p class="field-note dim">
+      Identifies the configuration everywhere, including in the database. Renaming
+      one keeps its listings and price history. Pasting a link below fills this
+      in if it is empty.
+    </p>
+  </fieldset>
+
+  {% if draft.metadata %}
+  {#
+    Shown, not edited. The description is read off the links when saving —
+    kept exactly as it is while the links are unchanged, re-read when one
+    changes — so there is nothing here to type. It is on the page so that a
+    detail read wrongly is at least visible.
+  #}
+  <fieldset>
+    <legend>Description</legend>
+    <p class="meta">
+      {% for k, v in draft.metadata.items() %}<span class="chip">{{ k | replace('_', ' ') }}: {{ v }}</span>{% endfor %}
+    </p>
+    <p class="field-note dim">
+      Read from the links when you save. Unchanged links keep it exactly as it
+      is; change one and it is re-read, keeping anything no link states. To
+      correct a detail by hand, edit <code>{{ config_file }}</code>.
+    </p>
+  </fieldset>
+  {% endif %}
+
+  <fieldset>
+    <legend>Sources</legend>
+    <p class="field-note dim">
+      For each site: run your search in the browser, then paste the URL from the
+      address bar. That URL already encodes your filters — CarWatch just
+      paginates it. Leave a site blank to not collect it. What the links say
+      (make, model, years, price cap) becomes the description on the
+      configuration's page.
+    </p>
+
+    {#
+      One row per known site, rather than a repeatable "add a source" list. A
+      configuration can hold at most one source per site, so a fixed form
+      cannot express the duplicate the parser would otherwise have to reject.
+    #}
+    {% for site in sites %}
+      <div class="source-row">
+        {#
+          Pasting says what the link reads as and suggests a name — nothing
+          fetched. See `/config/read-link`.
+        #}
+        <label class="field wide">
+          <span class="src src-{{ site }}">{{ site | site_label }}</span>
+          <input type="url" name="url_{{ site }}" value="{{ urls.get(site, '') }}"
+                 id="url_{{ site }}" placeholder="paste the {{ site }} search URL"
+                 spellcheck="false"
+                 hx-post="/config/read-link"
+                 hx-trigger="input changed delay:400ms"
+                 hx-include="closest form"
+                 hx-vals='{"site": "{{ site }}"}'
+                 hx-target="#read_{{ site }}"
+                 hx-swap="innerHTML">
+        </label>
+        {#
+          The button that earns this page. Fetches one page and reports what it
+          would find, writing nothing — a URL that silently returns zero is the
+          commonest way a configuration fails, and finding out here beats
+          finding out after a full collection (§7).
+        #}
+        <button type="button" class="btn test-url"
+                hx-post="/config/test-url"
+                hx-include="#url_{{ site }}"
+                hx-vals='{"site": "{{ site }}"}'
+                hx-target="#test_{{ site }}"
+                hx-swap="innerHTML"
+                hx-indicator="#spin_{{ site }}">
+          Test this URL
+        </button>
+        <span class="htmx-indicator spinner" id="spin_{{ site }}"></span>
+      </div>
+
+      <div class="link-read" id="read_{{ site }}"></div>
+
+      {#
+        Each site's standing rules, against the box you are about to paste
+        into. These used to live only in comments inside config.yaml — fine
+        while adding a source meant editing that file, useless once it meant
+        filling in this form. See `carwatch/site_rules.py`.
+      #}
+      {% for note in site_notes.get(site, []) %}
+        <p class="rule-note rule-{{ note.level }}">
+          {% if note.level == 'blocked' %}✕{% elif note.level == 'warn' %}⚠{% else %}·{% endif %}
+          {{ note.summary }}
+          {% if note.detail %}<span class="dim">{{ note.detail }}</span>{% endif %}
+        </p>
+      {% endfor %}
+
+      <div class="test-result" id="test_{{ site }}"></div>
+    {% endfor %}
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn-run">
+      {{ 'Save changes' if editing else 'Create and collect' }}
+    </button>
+    <a class="btn" href="{{ '/config/' ~ sidebar.selected.slug if editing else '/' }}">Cancel</a>
+    <span class="dim field-note">
+      Writes <code>{{ config_file }}</code>, keeping a timestamped backup.
+      {% if not editing %}Saving starts a collection for it straight away.{% endif %}
+    </span>
+  </div>
+</form>
+
+</div>{# .scoped #}
+</div>{# .with-sidebar #}
+
+{% endblock %}

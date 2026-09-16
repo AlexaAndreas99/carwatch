@@ -1,0 +1,91 @@
+{# Price-history chart for one listing, swapped in under its table row. #}
+
+{% set cid = "chart-" ~ listing.id %}
+<div class="history">
+  {% if series | length < 2 %}
+    <p class="dim">
+      Only one price recorded so far ({{ listing.price | price(listing.currency) }},
+      first seen {{ listing.first_seen | when }}). A chart appears once the price changes.
+    </p>
+  {% else %}
+    <div class="history-stats">
+      <span>first <strong>{{ first_price | price(listing.currency) }}</strong></span>
+      <span class="sep">·</span>
+      <span>low <strong class="down">{{ low | price(listing.currency) }}</strong></span>
+      <span class="sep">·</span>
+      <span>high <strong>{{ high | price(listing.currency) }}</strong></span>
+      <span class="sep">·</span>
+      <span>now <strong>{{ listing.price | price(listing.currency) }}</strong></span>
+      <span class="sep">·</span>
+      <span class="dim">{{ series | length }} observations</span>
+    </div>
+    <div class="history-canvas"><canvas id="{{ cid }}"></canvas></div>
+  {% endif %}
+</div>
+
+{% if series | length >= 2 %}
+<script>
+(function () {
+  // Chart.js is loaded on demand: most rows are never expanded, so there is no
+  // reason to pull it in on every page load.
+  var data = {{ series | tojson }};
+  var target = document.getElementById({{ cid | tojson }});
+  if (!target) return;
+
+  function draw() {
+    var css = getComputedStyle(document.body);
+    var ink = css.getPropertyValue('--ink').trim() || '#111';
+    var line = css.getPropertyValue('--line').trim() || '#ddd';
+    var accent = css.getPropertyValue('--accent').trim() || '#2563eb';
+
+    new Chart(target, {
+      type: 'line',
+      data: {
+        labels: data.map(function (d) { return d.t; }),
+        datasets: [{
+          data: data.map(function (d) { return d.p; }),
+          borderColor: accent,
+          backgroundColor: accent,
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0,
+          stepped: true   // a price holds until it changes; don't imply a slide
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: ink, maxRotation: 0, autoSkip: true }, grid: { color: line } },
+          y: { ticks: { color: ink }, grid: { color: line } }
+        }
+      }
+    });
+  }
+
+  if (window.Chart) { draw(); }
+  else if (window.__carwatchChartLoading) { window.__carwatchChartQueue.push(draw); }
+  else {
+    window.__carwatchChartLoading = true;
+    window.__carwatchChartQueue = [draw];
+    var s = document.createElement('script');
+    // Version verified to exist on cdnjs — a guessed version 404s and the
+    // chart silently falls back to the message below.
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js';
+    s.crossOrigin = 'anonymous';
+    s.referrerPolicy = 'no-referrer';
+    s.onload = function () {
+      window.__carwatchChartQueue.forEach(function (fn) { fn(); });
+      window.__carwatchChartQueue = [];
+    };
+    s.onerror = function () {
+      target.closest('.history').innerHTML =
+        '<p class="dim">Could not load the chart library (offline?). ' +
+        'The price history is still recorded in the database.</p>';
+    };
+    document.head.appendChild(s);
+  }
+})();
+</script>
+{% endif %}

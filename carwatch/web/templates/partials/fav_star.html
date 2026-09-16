@@ -1,0 +1,9 @@
+{#
+  The star on a card or row. Its own template because `/favorite/<id>` renders
+  just this, and htmx swaps it in place — the page around it never reloads.
+#}
+<button type="button" class="fav-toggle{{ ' on' if on }}"
+        hx-post="/favorite/{{ car_id }}" hx-swap="outerHTML"
+        title="{{ 'Remove from favorites' if on else 'Add to favorites' }}"
+        aria-label="{{ 'Remove from favorites' if on else 'Add to favorites' }}"
+        aria-pressed="{{ 'true' if on else 'false' }}">{{ '★' if on else '☆' }}</button>

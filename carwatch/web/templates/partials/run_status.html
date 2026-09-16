@@ -1,0 +1,62 @@
+{# Status strip for the "Run now" button.
+
+   While a job runs this fragment re-requests itself every 2s. When the job
+   finishes it stops polling (no hx-trigger) — so an idle dashboard makes no
+   background requests at all. #}
+
+{% if not job %}
+  {# No job this session: render nothing, and don't poll. #}
+{% else %}
+<div class="run-strip {{ 'running' if job.running else ('bad' if job.had_problems else 'good') }}"
+     {% if job.running %}hx-get="/run/status" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+
+  {% if job.running %}
+    <span class="spinner" aria-hidden="true"></span>
+    <strong>Collecting {{ job.label }}…</strong>
+    {% set p = job.progress %}
+    {% if p and p.steps %}
+      {# Where it has got to. mobile.de alone is a minute and a half of
+         deliberate pauses, and a spinner with no words reads as stuck. #}
+      <span>{{ p.site | site_label }} · {{ p.search }}{% if p.page %} · page {{ p.page }}{% endif %}</span>
+      <span class="dim">({{ p.step }} of {{ p.steps }})</span>
+      <span class="dim">{{ job.duration_seconds | round(0) | int }}s</span>
+    {% else %}
+      <span class="dim">{{ job.duration_seconds | round(0) | int }}s</span>
+      <span class="dim">— this can take a minute; olx renders in a real browser.</span>
+    {% endif %}
+  {% elif job.error %}
+    <strong>Run failed</strong>
+    <span class="mono">{{ job.error }}</span>
+  {% else %}
+    {% set t = job.totals %}
+    <strong>{{ job.label }} — done</strong>
+    <span>{{ t.found }} found</span>
+    <span class="sep">·</span>
+    <span class="{{ 'accent' if t.new }}">{{ t.new }} new</span>
+    <span class="sep">·</span>
+    <span class="{{ 'down' if t.price }}">{{ t.price }} price change{{ '' if t.price == 1 else 's' }}</span>
+    <span class="sep">·</span>
+    <span>{{ t.delisted }} delisted</span>
+    <span class="dim">in {{ job.duration_seconds | round(0) | int }}s</span>
+
+    {% if job.totals.new or job.totals.price or job.totals.delisted %}
+      <a class="btn" href="/changes">See what changed</a>
+    {% endif %}
+    {#
+      Reloads the page you are on. Not a link built from `request.url.path`:
+      this fragment is rendered by the `/run` and `/run/status` requests, so
+      that path is the poll's own URL, and the "refresh" opened a bare status
+      fragment instead of the page.
+    #}
+    <button type="button" class="btn" onclick="window.location.reload()">Refresh page</button>
+
+    {% for s in job.summaries if not s.ok %}
+      <div class="run-problem">
+        <span class="status status-{{ s.status.value }}">{{ s.status.value }}</span>
+        <strong>{{ s.search_name }} / {{ s.site }}</strong>
+        <span class="dim">{{ s.error_message }}</span>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endif %}

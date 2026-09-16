@@ -1,0 +1,12 @@
+{#
+  The number on the Changes tab (`/changes/unseen`): changes that arrived
+  since you last opened Changes. Asks again every minute, so a run finishing
+  in the background — scheduled, or started from another tab — shows up
+  without a reload. Empty when there is nothing new; the element stays either
+  way, so the asking does too.
+#}
+<span class="nav-badge" id="changes-badge"
+      hx-get="/changes/unseen" hx-trigger="every 60s" hx-swap="outerHTML"
+      {%- if count %} title="{{ count }} change{{ '' if count == 1 else 's' }} since you last opened Changes"{% endif %}>
+  {%- if count %}{{ '99+' if count > 99 else count }}{% endif -%}
+</span>

@@ -1,0 +1,81 @@
+{#
+  The card and row pieces, shared by the Listings page and by the fragment htmx
+  swaps into it while you type.
+
+  They live here rather than in listings.html because a macro defined in a page
+  is not visible to a partial rendered on its own -- and the fragment renders on
+  its own on every pause in typing.
+
+  Imported `with context`: `also_in_badge` reads `also_in` and `filters`, which
+  are page context rather than arguments.
+#}
+
+{% macro badges(car) %}
+  {% for site in car.sites %}
+    <span class="src src-{{ site }}">{{ site | site_label }}</span>
+  {% endfor %}
+{% endmacro %}
+
+{% macro photo(car, klass) %}
+  <div class="{{ klass }}">
+    {% if car.image_url %}
+      {# Hot-linked from the site's own CDN (§4). A delisted car's photo
+         eventually 404s, which is what onerror handles. #}
+      <img src="{{ car.image_url }}" alt="" loading="lazy" decoding="async"
+           onerror="this.closest('.{{ klass }}').classList.add('no-photo'); this.remove();">
+    {% endif %}
+    <span class="photo-fallback" aria-hidden="true">🚗</span>
+  </div>
+{% endmacro %}
+
+{% macro spark(car) %}
+  {% set points = car.prices | sparkline %}
+  {% if points %}
+    <svg class="spark {{ 'spark-down' if car.is_drop }}"
+         viewBox="0 0 {{ SPARK_WIDTH }} {{ SPARK_HEIGHT }}"
+         width="{{ SPARK_WIDTH }}" height="{{ SPARK_HEIGHT }}"
+         role="img" aria-label="{{ car.prices | length }} recorded prices">
+      <polyline points="{{ points }}" fill="none" stroke="currentColor"
+                stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+  {% endif %}
+{% endmacro %}
+
+{#
+  A car can match more than one configuration at once — the merge layer already
+  knows, because `search_ids` carries every search it turned up in, but until
+  now the relationship was invisible (§9.4). Naming the other configuration is
+  nearly free and makes it obvious that two of them overlap.
+#}
+{% macro also_in_badge(car) %}
+  {%- set others = also_in.get(car.id) -%}
+  {%- if others -%}
+    <span class="also-in">
+      {#- "also" only makes sense against a configuration you are already in.
+          Unscoped, the list is every configuration the car matches. -#}
+      {{- 'also in' if filters.config else 'in' }}
+      {%- for other in others %}
+        <a href="/?config={{ other.slug }}">{{ other.name }}</a>
+        {{- ' and' if loop.revindex == 2 else (',' if not loop.last) -}}
+      {%- endfor -%}
+    </span>
+  {%- endif -%}
+{% endmacro %}
+
+{#
+  The favourite star. `favorite_ids` is page context: the ids of the cars on
+  this page that are starred, worked out once by the route rather than per card.
+#}
+{% macro fav_star(car) -%}
+  {%- with car_id=car.id, on=(car.id in (favorite_ids | default([]))) -%}
+    {% include "partials/fav_star.html" %}
+  {%- endwith -%}
+{%- endmacro %}
+
+{% macro under_reference(car) %}
+  {%- if reference_median and car.price and car.price < reference_median -%}
+    <span class="ref-marker" title="List price only — see the note above.">
+      under RO median
+    </span>
+  {%- endif -%}
+{% endmacro %}
