@@ -11,6 +11,11 @@ computer. Windows and macOS.
 at a time. This adds the two things they never do: **one view over all three sites**, and
 **history** — that an ad has come down €1,500 over three weeks, or quietly vanished.
 
+![The CarWatch dashboard: listings merged across sites, with market tabs and filters](docs/dashboard.png)
+
+*Listings, scoped to one market. The sidebar counts cars per configuration and colours each
+one by health; the badge on Changes counts what has arrived since you last looked.*
+
 ```bash
 git clone https://github.com/AlexaAndreas99/carwatch.git
 cd carwatch
@@ -37,6 +42,11 @@ Then paste your search URLs into `config.yaml` and open the dashboard. Full setu
   (off by default) registered with the system's own scheduler — Task Scheduler or launchd.
 - **Stars cars you care about** on a Favorites page, keyed to the ad, so a favourite survives
   the listing row that showed it.
+
+![The changes feed, grouped by collection, with unseen changes marked](docs/changes.png)
+
+*The changes feed, grouped by collection. What arrived since your last visit is marked down
+the left; everything else folds away.*
 
 Nothing about the cars is baked in: CarWatch tracks whatever search URLs you paste, across any
 subset of the three sites, so a new hunt is a config change and never a code change.
