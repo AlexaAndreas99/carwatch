@@ -1,13 +1,49 @@
 # CarWatch
 
-Tracks used-car listings across **autovit.ro**, **olx.ro** and **mobile.de/ro** for a set of
-searches you define, keeps a price/availability history in a local SQLite database, and shows
-it in a local web dashboard. Runs on Windows and macOS, on demand.
+**Track the same car hunt across three listing sites, and see what actually changed.**
 
-**Why not just use the sites' own saved-search email alerts?** Those tell you about *new*
-listings, one site at a time. What this adds is (a) consolidating all three sites into one
-view and (b) **price history and delisting detection** — you can see that an ad has dropped
-€1,500 over three weeks, or that it vanished, which the native alerts don't give you.
+CarWatch collects the cars matching searches you define on **autovit.ro**, **olx.ro** and
+**mobile.de/ro**, keeps their prices and availability in a local SQLite database, and reads it
+back in a dashboard that runs on your own machine. No account, no cloud, no data leaving the
+computer. Windows and macOS.
+
+**Why not the sites' own saved-search alerts?** Those tell you about *new* listings, one site
+at a time. This adds the two things they never do: **one view over all three sites**, and
+**history** — that an ad has come down €1,500 over three weeks, or quietly vanished.
+
+```bash
+git clone https://github.com/AlexaAndreas99/carwatch.git
+cd carwatch
+./setup.sh          # macOS  ·  Windows: .\setup.ps1
+```
+
+Then paste your search URLs into `config.yaml` and open the dashboard. Full setup is below.
+
+## What it does
+
+- **Merges the same car across sites.** One ad carried by autovit and olx is one card, badged
+  with both sources, not two rows you have to notice are the same.
+- **Keeps a price history** per car, with a chart, so a "€1,000 off!" ad that has been
+  bouncing between two prices for a month is visible as exactly that.
+- **Notices what disappears.** A car that stops showing up is marked delisted rather than
+  silently dropped, because an ad vanishing is information too.
+- **Tells you what changed since you last looked** — a feed grouped by collection, and a
+  count on the tab of changes you have not seen.
+- **Separates the markets.** Romanian and German cars are counted and priced apart; prices in
+  another currency are left out of a median rather than silently converted at a made-up rate.
+- **Says when a source is failing.** A search returning nothing because a site quietly widened
+  it looks different from one genuinely finding nothing — that distinction is the health dot.
+- **Collects when you ask**, from the dashboard or the command line, with an optional schedule
+  (off by default) registered with the system's own scheduler — Task Scheduler or launchd.
+- **Stars cars you care about** on a Favorites page, keyed to the ad, so a favourite survives
+  the listing row that showed it.
+
+Nothing about the cars is baked in: CarWatch tracks whatever search URLs you paste, across any
+subset of the three sites, so a new hunt is a config change and never a code change.
+
+**Built with** Python 3.11+, FastAPI, SQLModel over SQLite, Jinja2 and htmx, with Playwright
+for the sites that refuse plain HTTP requests. No JavaScript build step, no database server.
+MIT licensed.
 
 ## Status
 
@@ -833,3 +869,11 @@ Where a rule is known, CarWatch now enforces it rather than leaving it in a comm
 you have not explicitly accepted, and says so with the reason. The one accepted exception is
 mobile.de's search route, which is disallowed and which you accepted for personal, low-volume
 use — that is stated every time you paste one, and never silently.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Use it, change it, ship it; just keep the copyright line.
+
+The cars, photos and listing pages it reads belong to the sites and the people who posted
+them. CarWatch stores text facts about an ad and hot-links its photo; it downloads no images
+and republishes nothing. See [Responsible use](#responsible-use) before pointing it at a site.
