@@ -184,11 +184,16 @@ python -m carwatch.collect --backfill-images    # see Photos, below
 
 **The easy way: the CarWatch icon.** On Windows, `.\install-shortcut.ps1` puts a CarWatch icon
 on the desktop and in the Start menu (`-Remove` takes them away; re-run it after moving the
-folder). Double-clicking it starts the dashboard if it is not already running — in a minimised
-window titled *CarWatch dashboard*; close that window to stop it — and opens
-http://127.0.0.1:8009 in your browser. Double-clicking again while it runs just opens the
-browser. On a Mac, `CarWatch.command` does the same from Finder (once: `chmod +x
-CarWatch.command`; written for macOS, not yet run on one).
+folder). Double-clicking it runs `carwatch/launch.py` with `pythonw`, which starts the dashboard
+if it is not already running and opens http://127.0.0.1:8009 in your browser. Double-clicking
+again while it runs just opens the browser. On a Mac, `setup.sh` builds `CarWatch.app`, an
+AppleScript app that runs `CarWatch.command` (and so the same launcher) with no Terminal
+window; written for macOS, not yet run on one.
+
+Started this way the dashboard has no window: its output goes to `logs/dashboard.log`, and it
+stops by itself once no CarWatch page has sent a heartbeat for five minutes, never during a
+collection, and not straight after the computer wakes from sleep (`carwatch/web/idle.py`).
+`dashboard.bat` on Windows is the visible alternative that runs until its window is closed.
 
 Or by hand:
 

@@ -18,5 +18,8 @@ config.yaml.bak-*
 # Early design scratch, kept on disk but not part of the project.
 carwatch_mock_data.json
 
+# Built on each Mac by setup.sh (see there for why it is not shipped).
+CarWatch.app/
+
 # Claude Code's local, per-machine settings.
 .claude/settings.local.json

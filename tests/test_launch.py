@@ -56,3 +56,13 @@ def test_start_runs_the_dashboard_windowless_with_idle_exit(monkeypatch, tmp_pat
         "-m", "carwatch.web", "--port", "8009", "--idle-exit", "5", "--log", str(tmp_path / "d.log")
     ]
     assert kw["stdout"] is launch.subprocess.DEVNULL
+
+
+def test_start_detaches_into_its_own_session_off_windows(monkeypatch, tmp_path):
+    """On a Mac the dashboard must outlive CarWatch.app's hidden shell."""
+    calls = []
+    monkeypatch.setattr(launch.sys, "platform", "darwin")
+    monkeypatch.setattr(launch.subprocess, "Popen", lambda cmd, **kw: calls.append(kw))
+    launch.start(8009, 5, tmp_path / "d.log")
+    assert calls[0]["start_new_session"] is True
+    assert "creationflags" not in calls[0]

@@ -4,10 +4,13 @@ This is what the Windows desktop icon runs, as
 
     pythonw -m carwatch.launch
 
+and on a Mac what CarWatch.app runs, through CarWatch.command.
+
 `pythonw` is the point. The icon used to run a PowerShell script, and Windows
 gives PowerShell a console window before PowerShell can hide it, so every
 double-click flashed a black window. pythonw never gets one, and nor does the
-dashboard it starts, so nothing appears but the browser.
+dashboard it starts, so nothing appears but the browser. The Mac's equivalent
+is the AppleScript app setup.sh builds, which runs this out of sight.
 
     python -m carwatch.launch               # the same, from a terminal
     python -m carwatch.launch --no-browser  # start if needed, and nothing else
@@ -76,7 +79,11 @@ def start(port: int, idle_minutes: float, log: Path = LOG) -> None:
 
 
 def tell(message: str) -> None:
-    """Say something went wrong — in a message box, since there is no console."""
+    """Say something went wrong — in a message box, since there is no console.
+
+    Elsewhere, to stderr: CarWatch.app shows whatever arrives there in a
+    dialog of its own, and a terminal shows it anyway.
+    """
     if sys.platform == "win32":
         import ctypes
 

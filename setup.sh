@@ -73,13 +73,71 @@ fi
 # not necessarily carry that bit.
 chmod +x CarWatch.command run.sh schedule.sh setup.sh 2>/dev/null || true
 
+# ------------------------------------------------------------ CarWatch.app
+# What you double-click on a Mac. A .command file always opens a Terminal
+# window; an AppleScript app does not, so this one just runs CarWatch.command
+# out of sight. Built here rather than shipped: an app made on your own Mac
+# carries no quarantine flag, so Gatekeeper opens it without the right-click
+# dance. Rebuilt every time, and it finds the project from its own location,
+# so it keeps working as long as it stays in this folder.
+build_app() {
+  local script
+  script="$(mktemp -t carwatch-app)"
+  cat > "$script" <<'APPLESCRIPT'
+on run
+	set root to do shell script "dirname " & quoted form of POSIX path of (path to me)
+	try
+		do shell script "cd " & quoted form of root & " && ./CarWatch.command"
+	on error message
+		display dialog message buttons {"OK"} default button 1 with title "CarWatch" with icon stop
+	end try
+end run
+APPLESCRIPT
+  # Checked step by step: inside an `if`, which is where this is called,
+  # bash's `set -e` does not stop at a failure.
+  rm -rf CarWatch.app
+  osacompile -o CarWatch.app "$script" || { rm -f "$script"; return 1; }
+  rm -f "$script"
+
+  # The CarWatch icon in place of the generic script one. Cosmetic, so a
+  # failure here leaves the default icon rather than failing setup.
+  if [ -f carwatch.png ] && command -v sips >/dev/null && command -v iconutil >/dev/null; then
+    local iconset size
+    iconset="$(mktemp -d -t carwatch-icon)/carwatch.iconset"
+    mkdir -p "$iconset"
+    for size in 16 32 128 256 512; do
+      sips -z "$size" "$size" carwatch.png --out "$iconset/icon_${size}x${size}.png" >/dev/null
+      sips -z $((size * 2)) $((size * 2)) carwatch.png --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+    done
+    iconutil -c icns "$iconset" -o CarWatch.app/Contents/Resources/applet.icns       && touch CarWatch.app       || echo "Kept the default icon for CarWatch.app."
+    rm -rf "$(dirname "$iconset")"
+  fi
+  return 0
+}
+
+app=0
+if command -v osacompile >/dev/null; then
+  if build_app; then
+    app=1
+    echo "CarWatch.app - ok"
+  else
+    echo "Could not build CarWatch.app; CarWatch.command still opens the dashboard."
+  fi
+fi
+
+if [ "$app" = "1" ]; then
+  open_it="Double-click CarWatch.app in this folder (drag it to the Dock to keep it handy)."
+else
+  open_it="Run ./CarWatch.command to open the dashboard."
+fi
+
 echo
 echo "Done. Next:"
 if [ "$fresh" = "1" ]; then
   echo "  1. Open config.yaml and paste your search URLs over PASTE_URL_HERE."
-  echo "  2. Double-click CarWatch.command in Finder (first time: right-click > Open)."
+  echo "  2. $open_it"
 else
-  echo "  Double-click CarWatch.command in Finder (first time: right-click > Open)."
+  echo "  $open_it"
 fi
 echo
 echo "A schedule is optional and off by default - set it on the Runs page."

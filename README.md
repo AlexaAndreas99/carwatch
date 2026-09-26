@@ -77,9 +77,9 @@ double-clicking it starts the dashboard and opens the browser.
 ./setup.sh
 ```
 
-Then double-click `CarWatch.command` in Finder. The first time, right-click it and choose
-**Open**, because macOS blocks double-clicked scripts from unidentified developers until you
-have opened one once.
+Setup also builds `CarWatch.app` in the project folder: double-click it in Finder, or drag it to
+the Dock. Keep the app itself in the folder, since it finds CarWatch from where it sits.
+`CarWatch.command` does the same from a Terminal window.
 
 Add `-SkipBrowser` (Windows) or `--skip-browser` (macOS) to skip the Chromium download, which
 is a few hundred megabytes. autovit and mobile.de still collect without it; olx does not,
@@ -124,11 +124,11 @@ and deletes configurations by writing `config.yaml` itself, comments and all.
 
 ## Use
 
-**Open the dashboard.** Double-click the CarWatch icon on Windows, or `CarWatch.command` on a
-Mac. It starts the dashboard at <http://127.0.0.1:8009> and opens your browser. On Windows it
-runs with no window and stops by itself five minutes after the last CarWatch tab closes (a
-collection in progress finishes first; its output goes to `logs\dashboard.log`); on a Mac,
-closing the "CarWatch dashboard" window stops it. By hand: `python -m carwatch.web --port 8009`.
+**Open the dashboard.** Double-click the CarWatch icon on Windows, or `CarWatch.app` on a Mac.
+It starts the dashboard at <http://127.0.0.1:8009> and opens your browser. The dashboard runs
+with no window and stops by itself five minutes after the last CarWatch tab closes; a
+collection in progress finishes first. Its output goes to `logs/dashboard.log`. By hand, in a
+window that runs until you close it: `python -m carwatch.web --port 8009`.
 
 - **Listings** — one card per *car*, not per database row: an ad carried by both autovit and
   olx appears once, badged with each site. Romania and Germany are separate tabs, because they
