@@ -289,8 +289,15 @@ class TaskScheduler:
             *args,
             "-TaskName", self.task_name,
         ]
+        # No window of its own. The dashboard asks on every page load (the
+        # top bar's next-run note), and started from the desktop icon it has
+        # no console for PowerShell to share - so without this, each page
+        # flashed a new console window up for a moment.
+        hidden = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         try:
-            return self.run(command, capture_output=True, text=True, timeout=60)
+            return self.run(
+                command, capture_output=True, text=True, timeout=60, creationflags=hidden
+            )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise ScheduleError(f"Could not ask Task Scheduler: {exc}") from exc
 

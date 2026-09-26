@@ -111,6 +111,19 @@ class Runner:
 # ----------------------------------------------------------------- Windows
 
 
+def test_windows_asks_task_scheduler_without_a_window():
+    """The dashboard asks on every page; from the windowless icon copy, a
+    PowerShell with a console of its own flashed up each time."""
+    seen = {}
+
+    def run(command, **kwargs):
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(command, 0, '{"registered": false}', "")
+
+    TaskScheduler(run=run).status()
+    assert seen["creationflags"] == getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
 def test_windows_status_when_nothing_is_registered():
     run = Runner([("-Status", (0, '{"registered": false}', ""))])
     status = TaskScheduler(run=run).status()
