@@ -306,6 +306,9 @@ th a.sort.on { color: var(--ink); }
 .baseline-chip { margin-left: auto; font-style: italic; }
 @media (max-width: 700px) { .baseline-chip { margin-left: 0; } }
 
+/* The site row sits tight under the type row: two answers to one "which". */
+.filters + .site-filters { margin-top: -.4rem; }
+
 .filters select {
   background: var(--card); color: var(--ink);
   border: 1px solid var(--line); border-radius: 6px;

@@ -1,5 +1,6 @@
 """Dashboard tests — render every page against a real SQLite DB."""
 
+import re
 import textwrap
 
 import pytest
@@ -316,6 +317,129 @@ def test_changes_feed_is_reverse_chronological(app_and_config):
     r = client.get("/changes?type=new&baseline=1")
     # "fresh" appeared in run 2, the others in run 1, so it must come first.
     assert r.text.index("IDfresh") < r.text.index("IDdrop")
+
+
+TWO_SITES = """
+settings:
+  db_path: "{db}"
+searches:
+  - name: "Qashqai"
+    make: "Nissan"
+    sources:
+      - site: "autovit"
+        url: "https://www.autovit.ro/autoturisme/nissan/qashqai"
+      - site: "olx"
+        url: "https://www.olx.ro/auto-masini-moto-ambarcatiuni/autoturisme/nissan/"
+"""
+
+
+class PerSiteAdapter:
+    """A FakeAdapter per site, so each source gets its own script."""
+
+    def __init__(self, scripts):
+        self.adapters = {site: FakeAdapter(script) for site, script in scripts.items()}
+
+    def __call__(self, site, settings):
+        return self.adapters[site]
+
+
+def olx_raw(ad_id, price, url=None):
+    """A listing with a URL of our choosing — the syndicated car needs autovit's on both sites."""
+    return RawListing(
+        site_listing_id=ad_id,
+        url=url or f"https://www.olx.ro/d/oferta/nissan-qashqai-ID{ad_id}.html",
+        currency="EUR",
+        price=price,
+        title=f"Nissan Qashqai {ad_id}",
+        year=2024,
+    )
+
+
+@pytest.fixture
+def two_site_client(tmp_path):
+    """autovit drops one car, olx drops another, and both drop a syndicated one."""
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        textwrap.dedent(TWO_SITES).format(db=(tmp_path / "t.db").as_posix()),
+        encoding="utf-8",
+    )
+    config = load_config(path)
+    shared_url = "https://www.autovit.ro/anunt/nissan-qashqai-IDshared.html"
+    adapter = PerSiteAdapter({
+        "autovit": [
+            [raw("avdrop", 20000), olx_raw("shared", 15000, shared_url)],
+            [raw("avdrop", 19000), olx_raw("shared", 14000, shared_url)],
+        ],
+        "olx": [
+            [olx_raw("olxdrop", 12000), olx_raw("shared", 15000, shared_url)],
+            [olx_raw("olxdrop", 11000), olx_raw("shared", 14000, shared_url)],
+        ],
+    })
+    collect(config, adapter_factory=adapter)
+    collect(config, adapter_factory=adapter)
+    return TestClient(create_app(path))
+
+
+def test_changes_feed_filters_by_site(two_site_client):
+    r = two_site_client.get("/changes?site=olx")
+    assert r.status_code == 200
+    assert "IDolxdrop" in r.text
+    assert "IDavdrop" not in r.text
+    # The syndicated car was reported by olx too, so it stays — still naming both.
+    assert "IDshared" in r.text
+    assert "AUTOVIT" in r.text
+
+    r = two_site_client.get("/changes?site=autovit")
+    assert "IDavdrop" in r.text and "IDshared" in r.text
+    assert "IDolxdrop" not in r.text
+
+
+def chip_count(html, href):
+    """The number on the filter chip that links to `href`."""
+    m = re.search(re.escape(f'href="{href}">') + r'[^<]*<span class="dim">(\d+)</span>', html)
+    return int(m.group(1)) if m else None
+
+
+def test_changes_feed_site_chips_count_rows(two_site_client):
+    r = two_site_client.get("/changes")
+    # Three rows in all; the syndicated one counts under each site it is on.
+    assert chip_count(r.text, "?type=all") == 3
+    assert chip_count(r.text, "?type=all&site=olx") == 2
+    assert chip_count(r.text, "?type=all&site=autovit") == 2
+    # No mobile.de source, so no mobile.de chip.
+    assert "site=mobilede" not in r.text
+
+    # The type chips count within the picked site, and keep it in their links.
+    r = two_site_client.get("/changes?site=olx")
+    assert chip_count(r.text, "?type=drops&site=olx") == 2
+
+
+def test_changes_feed_combines_sites(two_site_client):
+    r = two_site_client.get("/changes?site=olx&site=autovit")
+    assert "IDolxdrop" in r.text and "IDavdrop" in r.text and "IDshared" in r.text
+    # The type chips count the union, the merged car once.
+    assert chip_count(r.text, "?type=drops&site=autovit&site=olx") == 3
+
+
+def test_changes_feed_site_chips_toggle(two_site_client):
+    r = two_site_client.get("/changes?site=olx")
+    # AUTOVIT adds itself to the selection; OLX, already on, takes itself off.
+    assert chip_count(r.text, "?type=all&site=autovit&site=olx") == 2
+    assert chip_count(r.text, "?type=all") == 3
+    assert 'aria-pressed="true"' in r.text
+
+
+def test_changes_feed_unknown_site_is_no_filter(two_site_client):
+    r = two_site_client.get("/changes?site=ebay")
+    assert r.status_code == 200
+    assert "IDolxdrop" in r.text and "IDavdrop" in r.text
+
+
+def test_changes_feed_hides_site_chips_for_one_site(app_and_config):
+    path, config = app_and_config
+    seed_with_changes(config)
+    r = TestClient(create_app(path)).get("/changes")
+    assert "All sites" not in r.text
 
 
 # ---------------------------------------------------------- price history

@@ -6,17 +6,34 @@
   {%- if sidebar.show_disabled %}&disabled=1{% endif -%}
 {%- endmacro %}
 
+{# A site selection as query parameters: `&site=olx&site=autovit`. #}
+{% macro site_params(picked) -%}
+  {%- for s in picked %}&site={{ s }}{% endfor -%}
+{%- endmacro %}
+
 {% macro chip(key, label) %}
   {%- set on = (type == key) -%}
   <a class="filter-chip {{ 'on' if on }}"
-     href="?type={{ key }}{{ scope() }}{% if show_baseline %}&baseline=1{% endif %}">
+     href="?type={{ key }}{{ scope() }}{{ site_params(sites) }}{% if show_baseline %}&baseline=1{% endif %}">
     {{ label }} <span class="dim">{{ counts[key] }}</span>
+  </a>
+{% endmacro %}
+
+{#
+  A site chip toggles that site in or out of the selection; '' is "All sites",
+  which clears it. Keeps the type and baseline choices.
+#}
+{% macro site_chip(key, label, count) %}
+  {%- set on = (key in sites) if key else not sites -%}
+  <a class="filter-chip {{ 'on' if on }}" {% if key %}aria-pressed="{{ 'true' if on else 'false' }}"{% endif %}
+     href="?type={{ type }}{{ scope() }}{{ site_params(site_toggles[key] if key else []) }}{% if show_baseline %}&baseline=1{% endif %}">
+    {{ label }} <span class="dim">{{ count }}</span>
   </a>
 {% endmacro %}
 
 {# Link to this page with the baseline setting flipped, keeping everything else. #}
 {% macro baseline_url() -%}
-  ?type={{ type }}{{ scope() }}{% if not show_baseline %}&baseline=1{% endif %}
+  ?type={{ type }}{{ scope() }}{{ site_params(sites) }}{% if not show_baseline %}&baseline=1{% endif %}
 {%- endmacro %}
 
 {% block content %}
@@ -58,9 +75,27 @@
   {% endif %}
 </div>
 
+{#
+  Which site reported it. Only worth a row when there is a choice to make: a
+  configuration watching one site would get a single chip that filters nothing.
+  Kept on the row as long as a site is picked, so the way back is on screen.
+  Chips combine: OLX and AUTOVIT both on is the changes either reported.
+#}
+{% if site_counts | length > 1 or sites %}
+<div class="filters site-filters">
+  {{ site_chip('', 'All sites', site_counts_all) }}
+  {% for key, n in site_counts.items() %}
+    {{ site_chip(key, key | site_label, n) }}
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if not groups %}
   <div class="empty">
-    {% if baseline_count and not show_baseline %}
+    {% if sites and counts['all'] == 0 and not baseline_count %}
+      <p>Nothing from {{ sites | map('site_label') | join(' or ') }} here.</p>
+      <p class="dim"><a href="?type={{ type }}{{ scope() }}{% if show_baseline %}&baseline=1{% endif %}">Show every site</a></p>
+    {% elif baseline_count and not show_baseline %}
       <p>Nothing has changed yet.</p>
       <p class="dim">
         The {{ baseline_count }} listing{{ '' if baseline_count == 1 else 's' }} found on the

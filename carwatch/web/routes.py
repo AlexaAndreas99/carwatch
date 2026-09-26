@@ -2179,6 +2179,11 @@ def _is_baseline(group, baseline_run_ids: set[int]) -> bool:
     return all(event.run_id in baseline_run_ids for event, _ in group)
 
 
+def _reported_by(group, *sites: str) -> bool:
+    """True when any listing behind a feed row is on one of `sites`."""
+    return any(listing.site in sites for _, listing in group)
+
+
 # ------------------------------------------------ what you have not seen yet
 
 # When you last opened Changes, in naive UTC like every timestamp in the
@@ -2250,6 +2255,7 @@ def changes_feed(
     disabled: OptInt = None,
     limit: OptInt = None,
     baseline: OptInt = None,
+    site: Annotated[list[str], Query()] = [],
 ) -> HTMLResponse:
     """Reverse-chronological feed of what changed — §9's "most-used screen".
 
@@ -2261,9 +2267,16 @@ def changes_feed(
     old `?search_id=` picker scoped to one *source* of a configuration; this
     scopes to the configuration, which is what the two dropdowns disagreed
     about (§8).
+
+    `?site=` narrows to the changes the named sites reported, and repeats —
+    `?site=olx&site=autovit` is either. A merged row counts as reported by
+    every site in it, so an ad autovit and olx both carry shows under either —
+    and still badges both, because the filter picks rows rather than trimming
+    them. An unknown site is dropped, like an unknown configuration.
     """
     limit = _clamp(limit, default=200, maximum=1000)
     show_baseline = bool(baseline)
+    sites = [s for s in SITE_PRIORITY if s in site]
 
     wanted: Optional[list[EventType]] = None
     if type == "drops":
@@ -2323,6 +2336,8 @@ def changes_feed(
     groups = group_events([(e, l) for e, l, _ in fetched])
     if not show_baseline:
         groups = [g for g in groups if not _is_baseline(g, baseline_run_ids)]
+    if sites:
+        groups = [g for g in groups if _reported_by(g, *sites)]
     groups = groups[:limit]
 
     rows = []
@@ -2343,13 +2358,35 @@ def changes_feed(
     # promise more than the feed shows: 87 events, 42 rows. They also honour the
     # baseline setting, or every chip would over-promise by the whole first run.
     countable_groups = group_events(list(countable))
+    if not show_baseline:
+        shown = [g for g in countable_groups if not _is_baseline(g, baseline_run_ids)]
+    else:
+        shown = countable_groups
+
+    # Each row of chips counts what it would show with the other row's choice
+    # kept: the type chips within the chosen site, the site chips within the
+    # chosen type. A site with nothing in this scope gets no chip at all.
+    of_type = [g for g in shown if not wanted or pick_representative(g)[0].type in wanted]
+    site_counts = {
+        s: sum(1 for g in of_type if _reported_by(g, s))
+        for s in SITE_PRIORITY
+        if any(_reported_by(g, s) for g in countable_groups)
+    }
+    site_counts_all = len(of_type)
+    # What each site chip links to: the selection with that site flipped.
+    site_toggles = {
+        key: [s for s in SITE_PRIORITY if (s in sites) != (s == key)]
+        for key in site_counts
+    }
+
+    if sites:
+        countable_groups = [g for g in countable_groups if _reported_by(g, *sites)]
+        shown = [g for g in shown if _reported_by(g, *sites)]
     baseline_count = sum(
         1 for g in countable_groups if _is_baseline(g, baseline_run_ids)
     )
-    if not show_baseline:
-        countable_groups = [
-            g for g in countable_groups if not _is_baseline(g, baseline_run_ids)
-        ]
+    countable_groups = shown
+
     grouped_types = [pick_representative(group)[0].type for group in countable_groups]
     counts = {
         "all": len(grouped_types),
@@ -2369,6 +2406,10 @@ def changes_feed(
         rows=rows,
         counts=counts,
         type=type,
+        sites=sites,
+        site_toggles=site_toggles,
+        site_counts=site_counts,
+        site_counts_all=site_counts_all,
         sidebar=sidebar,
         show_baseline=show_baseline,
         baseline_count=baseline_count,
