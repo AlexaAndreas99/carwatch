@@ -4,11 +4,12 @@ This is the code that can lose the user's work, so the tests lean hard on the
 two guarantees that matter: the file's comments survive an edit, and nothing
 that fails validation ever reaches config.yaml.
 
-Every test works on a copy of the *real* config.yaml — frozen, as it stood on
-2026-09-10 with both Qashqai configurations, in tests/fixtures/real_config.yaml.
-A hand-written fixture would be a config with no comments to lose and no
-300-character URLs to mangle, which is precisely the file this module is easy
-on. Frozen rather than read live, because the dashboard now edits the live file:
+Every test works on a copy of a real config.yaml, in
+tests/fixtures/real_config.yaml: the file as it stood on 2026-09-10, comments,
+layout and all, with the searches swapped for made-up ones so the repository
+does not publish what is being shopped for. A hand-written fixture would be a
+config with no comments to lose and no 300-character URLs to mangle, which is
+precisely the file this module is easy on. Frozen rather than read live, because the dashboard now edits the live file:
 deleting a configuration from it made seventeen of these fail overnight.
 """
 
@@ -44,8 +45,8 @@ from carwatch.config_writer import (
 
 REAL_CONFIG = Path(__file__).resolve().parent / "fixtures" / "real_config.yaml"
 
-STRICT = "Nissan Qashqai 2025 4x4 Tekna"
-WIDER = "Nissan Qashqai 2024+ (any trim)"
+STRICT = "Skoda Octavia 2023 Combi RS"
+WIDER = "Skoda Octavia 2021+ (any trim)"
 
 
 @pytest.fixture
@@ -97,7 +98,7 @@ def test_the_mobilede_robots_note_survives_a_write(config: Path):
 def test_editing_a_url_keeps_the_comment_above_it(config: Path):
     """An edited source keeps its explanation, because the node is mutated in place."""
     existing = load_config(config).find_search(WIDER)
-    new_url = "https://www.autovit.ro/autoturisme/nissan/qashqai/de-la-2023"
+    new_url = "https://www.autovit.ro/autoturisme/skoda/octavia/de-la-2020"
 
     save_search(
         config,
@@ -123,7 +124,7 @@ def test_the_worked_example_at_the_bottom_survives(config: Path):
     """The trailing comment block is the one a naive dump loses first."""
     save_search(config, draft())
     assert "PASTE_URL_HERE" in body(config)
-    assert "Want to also track the front-wheel-drive Tekna" in body(config)
+    assert "Want to also track the hatchback RS" in body(config)
 
 
 def test_settings_are_never_touched(config: Path):
@@ -226,7 +227,7 @@ def test_edit_replaces_metadata_and_urls(config: Path):
 
 def test_edit_removes_a_metadata_key_that_is_no_longer_set(config: Path):
     """Clearing a form box must clear the key, not leave the old value behind."""
-    assert load_config(config).find_search(STRICT).metadata["trim"] == "Tekna"
+    assert load_config(config).find_search(STRICT).metadata["trim"] == "RS"
 
     existing = load_config(config).find_search(STRICT)
     metadata = {k: v for k, v in existing.metadata.items() if k != "trim"}
@@ -336,7 +337,7 @@ def test_deleting_the_last_block_keeps_the_worked_example_below_it(config: Path)
     delete_search(config, WIDER)
 
     text = body(config)
-    assert "Want to also track the front-wheel-drive Tekna" in text
+    assert "Want to also track the hatchback RS" in text
     assert '#         url: "PASTE_URL_HERE"' in text
 
 
@@ -709,7 +710,7 @@ def test_ranges_are_not_checked_when_loading_a_config(config: Path, tmp_path: Pa
     backwards still collects — it is only worth catching where we write it."""
     hand_edited = tmp_path / "hand.yaml"
     hand_edited.write_text(
-        body(config).replace('year_min: 2024', 'year_min: 2024\n    year_max: 2020'),
+        body(config).replace('year_min: 2021', 'year_min: 2021\n    year_max: 2020'),
         encoding="utf-8",
     )
     assert load_config(hand_edited).find_search(WIDER).metadata["year_max"] == 2020

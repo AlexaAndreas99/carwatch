@@ -6,14 +6,14 @@
 # because it has been collected into repeatedly - so edit these when your
 # requirements change, not to make a test convenient.
 #
-# Nothing about Nissan, Qashqai, these year ranges, or these particular filters
+# Nothing about this make and model, these year ranges, or these particular filters
 # is baked into the code. The tool tracks any make/model/year/price across any
 # subset of the three sites, purely from the search URLs pasted here - so adding
 # or replacing a search is a config change and never a code change.
 #
 # The `sources[].url` fields are the ONLY thing you must fill in yourself.
-# For each site: open it in your browser, set your filters (Nissan / Qashqai /
-# 2025 / 4x4 / Tekna / max price), run the search, then COPY THE URL FROM THE
+# For each site: open it in your browser, set your filters (make / model /
+# year / trim / max price), run the search, then COPY THE URL FROM THE
 # ADDRESS BAR and paste it below, replacing the PASTE_URL_HERE placeholder.
 # That pasted URL already encodes your filters — the tool just paginates it.
 
@@ -38,30 +38,30 @@ settings:
       request_delay_seconds: [5.0, 12.0]
 
 searches:
-  - name: "Nissan Qashqai 2025 4x4 Tekna"
+  - name: "Skoda Octavia 2023 Combi RS"
     # --- metadata below is for display/grouping only; real filtering lives in the URLs ---
-    make: "Nissan"
-    model: "Qashqai"
-    trim: "Tekna"
-    drivetrain: "4x4"        # AWD / ALL-MODE 4x4-i — the rarer config, expect few hits
-    year_min: 2025
-    year_max: 2025           # tip: widen to 2024 to catch the facelift + more listings
-    price_max: 30000
+    make: "Skoda"
+    model: "Octavia"
+    trim: "RS"
+    body: "Combi"            # the estate — the rarer config, expect few hits
+    year_min: 2023
+    year_max: 2023           # tip: widen to 2022 to catch more listings
+    price_max: 28000
     currency: "EUR"          # standard for RO car listings; change to RON if you meant lei
     enabled: true
 
     sources:
       # AUTOVIT — build/test this adapter first (best-structured site).
-      # How to get the URL: autovit.ro → Nissan → Qashqai → set An (year) 2025,
-      # Cutie automată if you want, Tracțiune 4x4, Versiune/Tekna, Preț până la 30000,
+      # How to get the URL: autovit.ro → Skoda → Octavia → set An (year) 2023,
+      # Cutie automată if you want, Caroserie Combi, Versiune/RS, Preț până la 28000,
       # then copy the address-bar URL here.
       - site: "autovit"
-        url: "https://www.autovit.ro/autoturisme/nissan/qashqai/de-la-2025/q-tekna?search%5Bfilter_enum_fuel_type%5D=petrol&search%5Bfilter_enum_gearbox%5D=automatic&search%5Bfilter_enum_transmission%5D=all-wheel-auto&search%5Badvanced_search_expanded%5D=true"
+        url: "https://www.autovit.ro/autoturisme/skoda/octavia/de-la-2023/q-rs?search%5Bfilter_enum_fuel_type%5D=petrol&search%5Bfilter_enum_gearbox%5D=automatic&search%5Bfilter_enum_body_type%5D=combi&search%5Badvanced_search_expanded%5D=true"
 
-      # OLX — same idea on olx.ro under Autoturisme → Nissan Qashqai, apply filters,
+      # OLX — same idea on olx.ro under Autoturisme → Skoda Octavia, apply filters,
       # copy the resulting URL.
       - site: "olx"
-        url: "https://www.olx.ro/auto-masini-moto-ambarcatiuni/autoturisme/nissan/?currency=EUR&search%5Bfilter_float_price:to%5D=30000&search%5Bfilter_enum_model%5D%5B0%5D=qashqai&search%5Bfilter_float_year:from%5D=2025"
+        url: "https://www.olx.ro/auto-masini-moto-ambarcatiuni/autoturisme/skoda/?currency=EUR&search%5Bfilter_float_price:to%5D=28000&search%5Bfilter_enum_model%5D%5B0%5D=octavia&search%5Bfilter_float_year:from%5D=2023"
 
       # MOBILE.DE/RO — hardest to scrape (build last, treat as best-effort).
       # Set filters on mobile.de/ro and paste the search URL. If it gets blocked,
@@ -78,19 +78,19 @@ searches:
       # for personal, low-volume use. CarWatch stays polite regardless - one run
       # a day, randomized delays, honest User-Agent, no anti-bot circumvention.
       - site: "mobilede"
-        url: "https://www.mobile.de/ro/vehicule/c%C4%83utare.html?isSearchRequest=true&s=Car&vc=Car&fr=2025&ms=18700%3B47&pw=110%3A147&tr=AUTOMATIC_GEAR&dt=ALL_WHEEL&ref=dsp"
+        url: "https://www.mobile.de/ro/vehicule/c%C4%83utare.html?isSearchRequest=true&s=Car&vc=Car&fr=2023&ms=22900%3B12&pw=180%3A195&tr=AUTOMATIC_GEAR&c=EstateCar&ref=dsp"
 
   # ---------------------------------------------------------------------------
-  # Wider comparison search. The strict 2025/4x4/Tekna search above is currently
+  # Wider comparison search. The strict 2023/Combi/RS search above is currently
   # empty on autovit (the site relaxes it rather than admitting zero results),
-  # so this one is what actually carries data: Qashqai, 2024 or newer, any trim
-  # and drivetrain. ~40 active listings, which is also the price-history and
+  # so this one is what actually carries data: Octavia, 2021 or newer, any trim
+  # and body. ~40 active listings, which is also the price-history and
   # delisting signal the strict search can't give you yet.
   # ---------------------------------------------------------------------------
-  - name: "Nissan Qashqai 2024+ (any trim)"
-    make: "Nissan"
-    model: "Qashqai"
-    year_min: 2024
+  - name: "Skoda Octavia 2021+ (any trim)"
+    make: "Skoda"
+    model: "Octavia"
+    year_min: 2021
     currency: "EUR"
     enabled: true
 
@@ -99,22 +99,22 @@ searches:
       # URLs matching *_price*, so a price-capped autovit search URL would be
       # off-limits to fetch. Filter by price in the dashboard instead.
       - site: "autovit"
-        url: "https://www.autovit.ro/autoturisme/nissan/qashqai/de-la-2024"
+        url: "https://www.autovit.ro/autoturisme/skoda/octavia/de-la-2021"
 
       - site: "olx"
-        url: "https://www.olx.ro/auto-masini-moto-ambarcatiuni/autoturisme/nissan/?currency=EUR&search%5Bfilter_enum_model%5D%5B0%5D=qashqai&search%5Bfilter_float_year:from%5D=2024"
+        url: "https://www.olx.ro/auto-masini-moto-ambarcatiuni/autoturisme/skoda/?currency=EUR&search%5Bfilter_enum_model%5D%5B0%5D=octavia&search%5Bfilter_float_year:from%5D=2021"
 
 # ------------------------------------------------------------------------------
-# Want to also track the front-wheel-drive Tekna (far more listings, often
-# cheaper), or a wider year range as a comparison? Add a second search block:
+# Want to also track the hatchback RS (far more listings, often cheaper), or a
+# wider year range as a comparison? Add a second search block:
 #
-#   - name: "Nissan Qashqai 2024-2025 Tekna (any drivetrain)"
-#     make: "Nissan"
-#     model: "Qashqai"
-#     trim: "Tekna"
-#     year_min: 2024
-#     year_max: 2025
-#     price_max: 30000
+#   - name: "Skoda Octavia 2022-2023 RS (any body)"
+#     make: "Skoda"
+#     model: "Octavia"
+#     trim: "RS"
+#     year_min: 2022
+#     year_max: 2023
+#     price_max: 28000
 #     currency: "EUR"
 #     enabled: true
 #     sources:
