@@ -125,8 +125,10 @@ and deletes configurations by writing `config.yaml` itself, comments and all.
 ## Use
 
 **Open the dashboard.** Double-click the CarWatch icon on Windows, or `CarWatch.command` on a
-Mac. It starts the dashboard at <http://127.0.0.1:8009> and opens your browser; closing the
-"CarWatch dashboard" window stops it. By hand: `python -m carwatch.web --port 8009`.
+Mac. It starts the dashboard at <http://127.0.0.1:8009> and opens your browser. On Windows it
+runs with no window and stops by itself five minutes after the last CarWatch tab closes (a
+collection in progress finishes first; its output goes to `logs\dashboard.log`); on a Mac,
+closing the "CarWatch dashboard" window stops it. By hand: `python -m carwatch.web --port 8009`.
 
 - **Listings** — one card per *car*, not per database row: an ad carried by both autovit and
   olx appears once, badged with each site. Romania and Germany are separate tabs, because they

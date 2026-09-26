@@ -291,6 +291,13 @@ th a.sort.on { color: var(--ink); }
   .spinner { animation: none; border-top-color: var(--line); }
 }
 
+/* Shown when the heartbeat finds the dashboard gone (base.html). */
+.stopped-notice {
+  margin: .75rem 1rem 0; padding: .6rem .9rem;
+  border: 1px solid var(--warn); border-radius: 6px;
+  background: var(--warn-bg); color: var(--ink); font-size: 13px;
+}
+
 /* -------------------------------------------------------- changes feed */
 
 .filter-chip {

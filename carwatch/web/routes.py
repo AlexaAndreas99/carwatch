@@ -21,7 +21,7 @@ from typing import Annotated, Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from pydantic import BeforeValidator
 from starlette.concurrency import run_in_threadpool
 from sqlmodel import Session, func, select
@@ -2226,6 +2226,19 @@ def _unseen_changes(session: Session, since: datetime) -> int:
         return 0
     baseline = _baseline_run_ids(session)
     return sum(1 for g in group_events(pairs) if not _is_baseline(g, baseline))
+
+
+@router.post("/heartbeat")
+def heartbeat(request: Request) -> Response:
+    """An open page saying it is still open — see `carwatch.web.idle`.
+
+    Answered either way, because the page also uses it to notice the
+    dashboard has stopped.
+    """
+    idle = request.app.state.idle
+    if idle is not None:
+        idle.seen()
+    return Response(status_code=204)
 
 
 @router.get("/changes/unseen", response_class=HTMLResponse)

@@ -3,8 +3,11 @@
 #   .\install-shortcut.ps1           # create or refresh the icons
 #   .\install-shortcut.ps1 -Remove   # take them away again
 #
-# The icon runs open-carwatch.ps1: start the dashboard if it isn't running,
-# then open it in the browser. Re-run this after moving the project folder.
+# The icon runs carwatch\launch.py with pythonw: start the dashboard if it
+# isn't running, then open it in the browser. pythonw rather than PowerShell,
+# which flashes a console window before it can hide it. Re-run this after
+# moving the project folder, and once after updating from a version whose icon
+# ran open-carwatch.ps1.
 
 [CmdletBinding()]
 param([switch]$Remove)
@@ -27,13 +30,11 @@ foreach ($folder in $places) {
 
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($link)
-    $shortcut.TargetPath = "powershell.exe"
-    $shortcut.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$root\open-carwatch.ps1`""
+    $shortcut.TargetPath = "$root\.venv\Scripts\pythonw.exe"
+    $shortcut.Arguments = "-m carwatch.launch"
     $shortcut.WorkingDirectory = $root
     $shortcut.IconLocation = "$root\carwatch.ico,0"
     $shortcut.Description = "Open the CarWatch dashboard"
-    # Minimised, so the PowerShell that starts things does not flash up.
-    $shortcut.WindowStyle = 7
     $shortcut.Save()
     Write-Output "Created $link"
 }

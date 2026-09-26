@@ -64,6 +64,10 @@
   <div id="run-status"
        hx-get="/run/status" hx-trigger="load" hx-swap="innerHTML"></div>
 
+  <div id="stopped-notice" class="stopped-notice" role="status" hidden>
+    CarWatch has stopped. Open it again from the desktop icon, then reload this page.
+  </div>
+
   <main>
     {% block content %}{% endblock %}
   </main>
@@ -74,6 +78,31 @@
   </footer>
 
   <script>
+    // Still here. The desktop icon's copy of the dashboard stops once no page
+    // has checked in for a few minutes (carwatch/web/idle.py), which is how
+    // closing the browser closes CarWatch. Checking in straight away when the
+    // page comes back into view, too — after a sleep, or from a background tab
+    // the browser had been slowing down — so the server hears from it before
+    // it gives up.
+    //
+    // The answer doubles as a liveness check: if the dashboard has gone, say
+    // so, instead of every button failing silently.
+    (function () {
+      var notice = document.getElementById('stopped-notice');
+      function beat() {
+        fetch('/heartbeat', { method: 'POST', cache: 'no-store' })
+          .then(function (r) { notice.hidden = r.ok; })
+          .catch(function () { notice.hidden = false; });
+      }
+      beat();
+      setInterval(beat, {{ HEARTBEAT_SECONDS }} * 1000);
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') beat();
+      });
+      window.addEventListener('pageshow', beat);
+      window.addEventListener('online', beat);
+    })();
+
     // Self-applying filter forms: no Apply button to reach for.
     //
     // This is the fallback path, used by the source page's small filter form.

@@ -241,6 +241,13 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
 
     app.state.jobs = JobRunner(config)
 
+    # Set by `python -m carwatch.web --idle-exit`, the desktop icon's copy; the
+    # heartbeat route tells it a page is still open. None means run until stopped.
+    from carwatch.web.idle import HEARTBEAT_SECONDS
+
+    app.state.idle = None
+    templates.env.globals["HEARTBEAT_SECONDS"] = HEARTBEAT_SECONDS
+
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
