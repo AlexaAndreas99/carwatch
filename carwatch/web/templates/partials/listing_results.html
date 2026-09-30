@@ -16,6 +16,10 @@
 {% from "partials/listing_macros.html" import
      badges, photo, spark, also_in_badge, under_reference, fav_star with context %}
 
+{# How many photos load straight away: two rows of cards at a wide window, or
+   more rows of the compact list than fit on screen. The rest stay lazy. #}
+{% set EAGER_PHOTOS = 12 %}
+
   <p class="totals">
     <strong>{{ stats.count }}</strong> car{{ '' if stats.count == 1 else 's' }}
     {%- if stats.count != stats.total %} <span class="dim">of {{ stats.total }}</span>{% endif %}
@@ -68,7 +72,7 @@
         a button inside an <a> is invalid, and the click would follow the link. #}
     {{ fav_star(car) }}
     <a class="card-photo-link" href="{{ car.canonical.url }}" target="_blank" rel="noopener">
-      {{ photo(car, 'card-photo') }}
+      {{ photo(car, 'card-photo', eager=loop.index <= EAGER_PHOTOS) }}
       <div class="card-sources">{{ badges(car) }}</div>
       {% if car.is_drop %}
         <span class="drop-flag">▼ {{ car.delta_since_first | delta }}</span>
@@ -127,7 +131,7 @@
   <tbody>
     {% for car in cars %}
     <tr class="{{ 'row-drop' if car.is_drop }}">
-      <td class="thumb-cell">{{ photo(car, 'row-photo') }}{{ fav_star(car) }}</td>
+      <td class="thumb-cell">{{ photo(car, 'row-photo', eager=loop.index <= EAGER_PHOTOS) }}{{ fav_star(car) }}</td>
       <td class="title">
         <button class="expand" title="Price history" data-expands="rowhist-{{ car.id }}"
                 hx-get="/listing/{{ car.id }}/history"

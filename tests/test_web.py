@@ -94,7 +94,10 @@ def test_source_health_moved_from_runs_to_the_configuration_page(client):
 
     runs = client.get("/runs")
     assert runs.status_code == 200
-    assert "never run" not in runs.text
+    # The table itself stays on the configuration page. "never run" may still
+    # appear on Runs, in the list of what needs attention.
+    assert "One row per site" in r.text
+    assert "One row per site" not in runs.text
     assert 'href="/config/qashqai"' in runs.text
 
 

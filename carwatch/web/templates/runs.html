@@ -8,9 +8,30 @@
     {{ totals.sources }} source{{ '' if totals.sources == 1 else 's' }} ·
     <strong>{{ totals.active }}</strong> active listing{{ '' if totals.active == 1 else 's' }}
     <span class="dim">before merging</span>
-    {%- if totals.problems %} · <span class="warn">{{ totals.problems }} need attention</span>{% endif %}
+    {%- if totals.problems %} · <a class="warn" href="#attention">{{ totals.problems }} need attention</a>{% endif %}
   </p>
 </div>
+
+{#
+  What "need attention" is counting. It is about configurations, not runs: the
+  usual case is a source that runs OK and finds nothing, which the run log
+  shows only as a green OK with a 0 in it, somewhere below the fold.
+#}
+{% if attention %}
+<section class="banner banner-bad attention" id="attention">
+  <h2 class="section-head">Needs attention</h2>
+  <ul>
+    {% for c, problems in attention %}
+      {% for site, why in problems %}
+      <li>
+        <a href="/config/{{ c.slug }}">{{ c.name }}</a>
+        {%- if site %} · <strong>{{ site | site_label }}</strong>{% endif %} — {{ why }}
+      </li>
+      {% endfor %}
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 
 {# Filled in after the page loads: reading the schedule means asking the
    system scheduler, and the run log below should not wait for that. #}
@@ -35,7 +56,19 @@
 <p class="totals">Most recent first. Blocked and errored runs are listed here so
    scraping problems stay visible.</p>
 
-{% if not runs %}
+<div class="filters">
+  <a class="filter-chip {{ 'on' if show == 'all' }}" href="?show=all">
+    All runs <span class="dim">{{ run_counts.all }}</span>
+  </a>
+  <a class="filter-chip {{ 'on' if show == 'problems' }}" href="?show=problems"
+     title="Runs that did not finish OK, or found nothing">
+    Problems <span class="dim">{{ run_counts.problems }}</span>
+  </a>
+</div>
+
+{% if not runs and show == 'problems' %}
+  <div class="empty"><p>No problem runs — every run finished OK and found something.</p></div>
+{% elif not runs %}
   <div class="empty"><p>No runs yet. Try <code>python -m carwatch.collect --all</code>.</p></div>
 {% else %}
 <div class="table-wrap"><table class="grid">
@@ -48,12 +81,14 @@
   </thead>
   <tbody>
     {% for r in runs %}
-    <tr>
+    {% set found_nothing = r.status.value == 'ok' and r.listings_found == 0 %}
+    <tr class="{{ 'run-problem' if r.status.value != 'ok' or found_nothing }}">
       <td class="dim">{{ r.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
       <td><a href="/search/{{ r.search_id }}">{{ names.get(r.search_id, '#' ~ r.search_id) }}</a></td>
       <td>{{ r.site }}</td>
       <td><span class="status status-{{ r.status.value }}">{{ r.status.value }}</span></td>
-      <td class="num">{{ r.listings_found }}</td>
+      <td class="num {{ 'warn' if found_nothing }}"
+          {%- if found_nothing %} title="Ran OK but found nothing"{% endif %}>{{ r.listings_found }}</td>
       <td class="num">{{ r.new_count }}</td>
       <td class="num">{{ r.price_change_count }}</td>
       <td class="num">{{ r.delisted_count }}</td>

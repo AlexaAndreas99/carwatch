@@ -1976,18 +1976,32 @@ def save_schedule(
 
 
 @router.get("/runs", response_class=HTMLResponse)
-def runs_log(request: Request, limit: OptInt = None) -> HTMLResponse:
+def runs_log(request: Request, limit: OptInt = None, show: str = Query("all")) -> HTMLResponse:
     """The run log: every run, newest first, whatever it belonged to.
 
     The per-source health table this page used to carry moved to each
     configuration's own page (§8) — "is this configuration collecting?" is a
     question about the configuration, and answering it here meant the answer
     sat two pages away from everything else about it.
+
+    `show=problems` narrows the log to runs worth a look: anything that did not
+    finish OK, and OK runs that found nothing — the quiet failure the header's
+    "need attention" count is usually about, and which a status filter alone
+    would miss.
     """
     limit = _clamp(limit, default=60, maximum=500)
+    show = "problems" if show == "problems" else "all"
+    is_problem = (Run.status != RunStatus.OK) | (Run.listings_found == 0)
 
     with _session(request) as session:
-        runs = session.exec(select(Run).order_by(Run.started_at.desc()).limit(limit)).all()
+        query = select(Run)
+        if show == "problems":
+            query = query.where(is_problem)
+        runs = session.exec(query.order_by(Run.started_at.desc()).limit(limit)).all()
+        run_counts = {
+            "all": session.exec(select(func.count()).select_from(Run)).one(),
+            "problems": session.exec(select(func.count()).select_from(Run).where(is_problem)).one(),
+        }
         searches = session.exec(select(Search)).all()
         names = {s.id: s.name for s in searches}
         index = configurations.load_configurations(session)
@@ -2000,11 +2014,17 @@ def runs_log(request: Request, limit: OptInt = None) -> HTMLResponse:
         "active": sum(s.active_count for c in index.configurations for s in c.sources),
         "problems": sum(1 for c in index.configurations if c.problems),
     }
+    # What the count is counting, spelled out at the top of the page rather
+    # than one click away on each configuration's page.
+    attention = [(c, c.problems) for c in index.configurations if c.problems]
 
     return _render(
         request,
         "runs.html",
         runs=runs,
+        show=show,
+        run_counts=run_counts,
+        attention=attention,
         names=names,
         config_links=[(c.name, c.slug) for c in index.configurations],
         totals=totals,

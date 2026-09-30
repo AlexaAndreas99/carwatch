@@ -16,13 +16,20 @@
   {% endfor %}
 {% endmacro %}
 
-{% macro photo(car, klass) %}
-  <div class="{{ klass }}">
+{#
+  `eager`: the first screenful loads straight away instead of waiting on the
+  lazy loader, so the top of the page is not a wall of empty boxes. Until a
+  photo arrives its box shows a skeleton (`.loading`), which the photo's own
+  load or error clears.
+#}
+{% macro photo(car, klass, eager=false) %}
+  <div class="{{ klass }}{{ ' loading' if car.image_url }}">
     {% if car.image_url %}
       {# Hot-linked from the site's own CDN (§4). A delisted car's photo
          eventually 404s, which is what onerror handles. #}
-      <img src="{{ car.image_url }}" alt="" loading="lazy" decoding="async"
-           onerror="this.closest('.{{ klass }}').classList.add('no-photo'); this.remove();">
+      <img src="{{ car.image_url }}" alt="" loading="{{ 'eager' if eager else 'lazy' }}" decoding="async"
+           onload="this.parentNode.classList.remove('loading');"
+           onerror="this.parentNode.classList.remove('loading'); this.parentNode.classList.add('no-photo'); this.remove();">
     {% endif %}
     <span class="photo-fallback" aria-hidden="true">🚗</span>
   </div>

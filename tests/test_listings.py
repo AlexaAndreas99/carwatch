@@ -186,13 +186,32 @@ def test_empty_database_renders_an_empty_state(project):
 # ------------------------------------------------------------------ photos
 
 
-def test_photos_are_hot_linked_and_lazy(project):
-    body = project.run(
-        {"autovit": [raw("700", AUTOVIT_AD, 26980.0, image_url="https://cdn/car.jpg")]}
-    ).get()
+def test_photos_are_hot_linked_and_only_the_first_screenful_is_eager(project):
+    """The top of the page loads at once; everything below it stays lazy."""
+    cars = [
+        mobilede(str(900 + i), 30000.0 + i, image_url=f"https://cdn/car{i}.jpg")
+        for i in range(15)
+    ]
+    project.run({"mobilede": cars})
 
-    assert 'src="https://cdn/car.jpg"' in body
-    assert 'loading="lazy"' in body
+    for view in ("cards", "compact"):
+        body = project.get(view=view)
+        assert 'src="https://cdn/car0.jpg"' in body
+        assert body.count('loading="eager"') == 12
+        assert body.count('loading="lazy"') == 3
+
+
+def test_a_photo_on_its_way_shows_a_skeleton_and_a_car_without_one_does_not(project):
+    project.run(
+        {
+            "autovit": [raw("700", AUTOVIT_AD, 26980.0, image_url="https://cdn/car.jpg")],
+            "olx": [raw("901", OTHER_AUTOVIT_AD, 31000.0)],
+        }
+    )
+
+    body = project.get()
+    assert body.count('class="card-photo loading"') == 1
+    assert body.count('class="card-photo"') == 1
 
 
 def test_a_merged_card_borrows_the_photo_from_whichever_site_has_one(project):
@@ -772,6 +791,39 @@ def test_runs_page_carries_the_health_table_and_the_log(project):
     assert "Run log" in body
     assert "before merging" in body
     assert "autovit" in body
+
+
+def test_need_attention_links_to_a_list_of_what_needs_it(project):
+    """olx and mobile.de find nothing: runs "OK", but the header flags it."""
+    project.run({"autovit": [raw("1", AUTOVIT_AD, 26980.0)]})
+
+    body = project.get("/runs")
+
+    assert '<a class="warn" href="#attention">1 need attention</a>' in body
+    assert 'id="attention"' in body
+    assert "<strong>OLX</strong> — found nothing on its last run" in body
+    assert body.count('class="run-problem"') == 2
+
+
+def test_the_problems_filter_keeps_found_nothing_runs_and_drops_clean_ones(project):
+    project.run({"autovit": [raw("1", AUTOVIT_AD, 26980.0)]})
+
+    body = project.get("/runs?show=problems")
+
+    assert body.count('class="run-problem"') == 2
+    assert body.count("<tr class") == 2
+    assert "Problems <span class=\"dim\">2</span>" in body
+
+
+def test_with_nothing_wrong_there_is_no_attention_list(project):
+    project.run({
+        "autovit": [raw("1", AUTOVIT_AD, 26980.0)],
+        "olx": [raw("2", OTHER_AUTOVIT_AD, 27000.0)],
+        "mobilede": [mobilede("3", 30000.0)],
+    })
+
+    assert 'id="attention"' not in project.get("/runs")
+    assert "No problem runs" in project.get("/runs?show=problems")
 
 
 # ------------------------------------------------------- static asset cache
