@@ -238,6 +238,15 @@ th a.sort.on { color: var(--ink); }
    (and the query itself can miss by the scrollbar width). */
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .table-wrap .grid { min-width: max-content; }
+/* Except the Listings rows: at max-content they came to ~1570px against a
+   column that tops out near 1000, pushing mileage, location, sources and
+   "first seen" off to the right. Let titles, places and the "also in" line
+   wrap to fit instead, and only scroll below a width where nine columns
+   genuinely cannot share the space. "Also in" sits under the title, and the
+   sparkline under its change, so neither column is widened by them. */
+.table-wrap .grid.listings { min-width: 56rem; }
+.listings .delta-cell .spark { display: block; margin: .2rem 0 0 auto; }
+.listings td:last-child { white-space: nowrap; }   /* "first seen": 2026-09-18 on one line */
 
 @media (max-width: 700px) {
   main { padding: 1rem; }
@@ -929,7 +938,6 @@ tr.run-problem td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
 .also-in { display: block; font-size: 11px; color: var(--dim); margin-top: .2rem; }
 .also-in a { color: var(--dim); }
 .also-in a:hover { color: var(--accent); }
-.sources-cell .also-in { margin-top: .25rem; }
 
 /* A heading that is also a link: it should read as the heading, not as a link
    with the browser's default colour and underline. */

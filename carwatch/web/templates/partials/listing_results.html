@@ -138,13 +138,14 @@
                 hx-target="#rowhist-{{ car.id }}"
                 hx-swap="innerHTML">▸</button>
         <a href="{{ car.canonical.url }}" target="_blank" rel="noopener">{{ car.canonical.title }}</a>
+        {{ also_in_badge(car) }}
       </td>
       <td class="num">{{ car | year_cell }}</td>
       <td class="num price">
         {{ car.price | price(car.currency) }}
         {{ under_reference(car) }}
       </td>
-      <td class="num">
+      <td class="num delta-cell">
         {% set d = car.delta_since_first %}
         {% if d is none %}<span class="dim">—</span>
         {% elif d < 0 %}<span class="down">▼ {{ d | delta }}</span>
@@ -153,7 +154,7 @@
       </td>
       <td class="num">{{ car.canonical.mileage_km | km }}</td>
       <td>{{ car.canonical.location or '—' }}</td>
-      <td class="sources-cell">{{ badges(car) }}{{ also_in_badge(car) }}</td>
+      <td class="sources-cell">{{ badges(car) }}</td>
       <td class="dim">{{ car.first_seen | when }}</td>
     </tr>
     <tr class="history-row" hidden><td colspan="9" id="rowhist-{{ car.id }}"></td></tr>
