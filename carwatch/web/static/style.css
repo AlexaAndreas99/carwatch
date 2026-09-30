@@ -822,6 +822,18 @@ a.config-open:hover { color: var(--accent); background: var(--card); }
 .stat-value { font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .stat-note { font-size: 12px; }
 
+/* Market section: cars per mileage band, as a bar beside the numbers. */
+.km-bands { margin-top: .75rem; }
+/* Fits its column: the bar is what gives way, not the numbers. */
+.table-wrap .grid.km-bands { min-width: 0; }
+.km-bands td:first-child { white-space: nowrap; }
+.km-bands .bar-col { width: 30%; min-width: 4rem; }
+.km-bar {
+  display: block; height: 10px; min-width: 2px; border-radius: 2px;
+  background: var(--accent); opacity: .7;
+}
+.km-note { margin-top: .4rem; font-size: 12px; }
+
 .page-head h1 .dot { display: inline-block; vertical-align: middle; margin-right: .4rem; }
 .page-head h1 .tag { vertical-align: middle; margin-left: .4rem; }
 
@@ -1158,3 +1170,8 @@ a.next-run:hover { color: var(--accent); }
   .brand { flex: none; }
   main { padding: 1rem .8rem; }
 }
+
+/* The "new" row sits above the used bands and is a different market: set it
+   apart with a rule underneath and a muted bar. */
+.km-bands tr.band-new td { border-bottom: 2px solid var(--line); }
+.km-bands tr.band-new .km-bar { background: var(--dim); }

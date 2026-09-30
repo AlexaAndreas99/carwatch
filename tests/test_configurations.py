@@ -605,3 +605,31 @@ def test_a_disallowed_url_outranks_the_last_run_verdict(hand_edited):
     source = index.configurations[0].sources[0]
     assert source.health == configurations.HEALTH_BAD
     assert "_price" in source.problem
+
+
+# ------------------------------------------------------------------- market
+
+
+def test_the_configuration_page_shows_its_market(project):
+    project.run({"autovit": [
+        raw("1", price=20000.0, mileage_km=30000),
+        raw("2", price=22000.0, mileage_km=35000),
+        raw("3", price=24000.0, mileage_km=40000),
+        raw("4", price=31000.0, mileage_km=12),
+    ]})
+
+    body = project.get("/config/qashqai-2024")
+
+    assert "Market" in body
+    assert "4 cars" in body
+    assert "3 used · median 22 000 EUR · 35 000 km" in body
+    assert "1 new" in body
+    assert "New / under 1 000 km" in body
+    assert "25k–50k km" in body
+    assert "time-to-sell needs more history" in body
+
+
+def test_a_configuration_with_no_cars_has_no_market_section(project):
+    project.run({})
+
+    assert "km-bands" not in project.get("/config/juke")

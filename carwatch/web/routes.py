@@ -69,6 +69,7 @@ from carwatch.models import (
     utcnow,
 )
 from carwatch.web import configurations
+from carwatch.web.market import market_summary
 from carwatch.web.merge import (
     MARKET_LABELS,
     MARKETS,
@@ -1724,6 +1725,7 @@ def configuration_page(
         summary=_price_summary(cars, history, utcnow()),
         trend=trend,
         chart=_trend_chart(trend),
+        market=market_summary(cars, utcnow()),
     )
 
 

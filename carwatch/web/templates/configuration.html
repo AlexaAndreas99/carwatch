@@ -257,6 +257,106 @@
 </p>
 {% endif %}
 
+{# ---------------------------------------------------------------- market #}
+
+{#
+  The market behind the configuration: where the cars are, what mileage they
+  carry, what each mileage asks, and how quickly they go. Describes the segment
+  and never rates a car — see carwatch/web/market.py.
+#}
+{% if market %}
+{% set sell = market.selling %}
+<h2 class="section-head">
+  Market
+  <span class="section-link">active cars, each counted once across sites</span>
+</h2>
+
+<div class="summary">
+  {% for m in market.markets %}
+  <div class="stat">
+    <span class="stat-label">{{ m.label }}</span>
+    <span class="stat-value">{{ m.cars }} car{{ '' if m.cars == 1 else 's' }}</span>
+    {#
+      One line per kind of car. "17 cars · 17 used" says it twice, so the used
+      line names its count only when new cars share the market.
+    #}
+    {% set used_parts = ([m.used ~ ' used'] if m.new else [])
+         + (['median ' ~ (m.used_price | price('EUR'))] if m.used_price is not none else [])
+         + ([m.used_km | km] if m.used_km is not none else []) %}
+    {% if m.used and used_parts %}
+    <span class="stat-note dim">{{ used_parts | join(' · ') }}</span>
+    {% endif %}
+    {% if m.new %}
+    <span class="stat-note dim">
+      {{- ([m.new ~ ' new'] + (['median ' ~ (m.new_price | price('EUR'))] if m.new_price is not none else [])) | join(' · ') -}}
+    </span>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <div class="stat">
+    <span class="stat-label">Gone in 14 days</span>
+    <span class="stat-value">{{ sell.gone_recently }}</span>
+    <span class="stat-note dim">
+      {%- if sell.median_days_listed is not none -%}
+        {#- Only cars that have already gone: slow sellers are still listed, so
+            this runs short until there are weeks of history behind it. -#}
+        the {{ sell.gone }} we saw arrive and go lasted a median
+        {{ sell.median_days_listed | round | int }} day{{ '' if (sell.median_days_listed | round | int) == 1 else 's' }}
+      {%- else -%}
+        time-to-sell needs more history ({{ sell.watched_days }} day{{ '' if sell.watched_days == 1 else 's' }} so far)
+      {%- endif -%}
+    </span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Cut their price</span>
+    <span class="stat-value">{{ (sell.cut_share * 100) | round | int }}%</span>
+    <span class="stat-note dim">{{ sell.cut }} of {{ sell.active }} cars, last 14 days</span>
+  </div>
+</div>
+
+{% if market.bands %}
+<div class="table-wrap"><table class="grid km-bands">
+  <thead>
+    <tr>
+      <th>Mileage</th>
+      <th class="bar-col"></th>
+      {% for m in market.markets %}
+        {# One pair of columns per market; with only one, plain headings. #}
+        <th class="num">{{ m.label ~ ' cars' if market.markets | length > 1 else 'Cars' }}</th>
+        <th class="num">Median asking</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for band in market.bands %}
+    <tr class="{{ 'band-new' if band.is_new }}">
+      <td>{{ band.label }}</td>
+      <td class="bar-col">
+        <span class="km-bar" style="width: {{ (band.cars / market.widest_band * 100) | round(1) }}%"
+              title="{{ band.cars }} car{{ '' if band.cars == 1 else 's' }}"></span>
+      </td>
+      {% for m in market.markets %}
+        {% set n, mid = band.by_market[m.key] %}
+        <td class="num {{ 'dim' if not n }}">{{ n }}</td>
+        <td class="num">
+          {%- if mid is not none %}{{ mid | price('EUR') }}
+          {%- elif n %}<span class="dim" title="Fewer than 3 cars: a median would be one seller's price">—</span>
+          {%- else %}<span class="dim">—</span>{% endif -%}
+        </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+<p class="totals dim km-note">
+  {% if market.bands[0].is_new %}"New" is an unregistered car, or one with under 1 000 km — dealer stock,
+  kept apart from the used bands.{% endif %} Medians need at least 3 cars.
+  {%- if market.no_km %} {{ market.no_km }} used car{{ '' if market.no_km == 1 else 's' }} without a mileage in the ad {{ 'is' if market.no_km == 1 else 'are' }} left out.{% endif %}
+  Price differences inside a band are mostly equipment and trim, which CarWatch does not read.
+</p>
+{% endif %}
+{% endif %}
+
 {# ----------------------------------------------------------------- cars #}
 
 <h2 class="section-head">
