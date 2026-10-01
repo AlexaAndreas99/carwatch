@@ -112,9 +112,11 @@ def collect_search(
         log.info("%s / %s: %s", search.name, search.site, summary.error_message)
         return summary
 
+    # Not written until the fetch is over. Writing it here opened the write
+    # transaction before a fetch that takes minutes on mobile.de, and SQLite
+    # allows one writer: every dashboard write in the meantime waited out its
+    # busy timeout and failed - opening Changes during a run was a 500.
     run = Run(search_id=search.id, site=search.site, started_at=utcnow())
-    session.add(run)
-    session.flush()  # assign run.id for the events below
 
     # ---------------------------------------------------------------- fetch
     try:
@@ -149,6 +151,9 @@ def collect_search(
         )
 
     # --------------------------------------------------------------- diff
+    session.add(run)
+    session.flush()  # assign run.id for the events below
+
     existing = {
         x.site_listing_id: x
         for x in session.exec(select(Listing).where(Listing.search_id == search.id)).all()
