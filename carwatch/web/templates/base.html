@@ -25,7 +25,10 @@
             the next-run line: no page should wait on it. -#}
         <span class="nav-badge" id="changes-badge"
               hx-get="/changes/unseen" hx-trigger="load" hx-swap="outerHTML"></span></a>
-      <a href="/runs" {% if request.url.path == '/runs' %}class="on"{% endif %}>Runs</a>
+      <a href="/runs" {% if request.url.path == '/runs' %}class="on"{% endif %}>Runs
+        {%- if update_available() %}<span class="nav-badge update-badge"
+              title="A new version of CarWatch is available - see the Runs page">new</span>{% endif -%}
+      </a>
     </nav>
 
     {#

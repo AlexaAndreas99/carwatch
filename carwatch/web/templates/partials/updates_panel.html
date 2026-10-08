@@ -1,0 +1,108 @@
+{#
+  The updates panel on the Runs page (`/updates`).
+
+  Loaded after the page and swapped in place by its buttons. What it knows
+  comes from the last check (carwatch.updates), which the dashboard repeats
+  once a day; "Check now" asks GitHub straight away.
+#}
+<section class="schedule-panel updates-panel" id="updates-panel">
+  <h2 class="section-head">Updates</h2>
+
+  {% if error %}
+    <div class="banner banner-bad"><p><strong>Not updated.</strong> {{ error }}</p></div>
+  {% endif %}
+
+  {% if applied %}
+    <p class="test-line ok">
+      ✓ Updated from {{ applied.old }} to {{ applied.new }}
+      {%- if applied.installed_packages %}, new packages installed{% endif %}.
+    </p>
+    {% if restarting %}
+      <p class="schedule-now" id="restart-note">
+        <span class="spinner"></span> Restarting CarWatch on the new version — this page
+        reloads by itself in a few seconds.
+      </p>
+      <script>
+        // Wait for the old dashboard to go and the new one to answer with a
+        // different version, then reload onto it.
+        (function () {
+          var old = {{ applied.old | tojson }}, tries = 0;
+          var note = document.getElementById('restart-note');
+          function poll() {
+            fetch('/updates/version', { cache: 'no-store' })
+              .then(function (r) { return r.ok ? r.text() : ''; })
+              .then(function (v) {
+                if (v && v.trim() && v.trim() !== old) { location.reload(); return; }
+                again();
+              })
+              .catch(again);
+          }
+          function again() {
+            // About a minute and a half, then stop and say what to do.
+            if (++tries > 90) {
+              note.textContent = 'CarWatch has not come back yet. Open it again from its icon.';
+              return;
+            }
+            setTimeout(poll, 1000);
+          }
+          setTimeout(poll, 1500);
+        })();
+      </script>
+    {% else %}
+      <p class="schedule-now">
+        <strong>Close CarWatch and open it again</strong> to start using the new version.
+      </p>
+    {% endif %}
+
+  {% elif unsupported %}
+    <p class="schedule-now dim">{{ unsupported }}</p>
+
+  {% else %}
+    {% if status is none %}
+      <p class="schedule-now">Not checked yet. CarWatch looks for updates once a day.</p>
+    {% elif status.error %}
+      <p class="schedule-now">
+        <span class="warn">Could not check for updates</span> — {{ status.error }}
+      </p>
+    {% elif status.available %}
+      <p class="schedule-now">
+        <strong>{{ status.behind }} update{{ '' if status.behind == 1 else 's' }} available.</strong>
+      </p>
+      <ul class="update-list">
+        {% for sha, title in status.commits %}
+          <li><code>{{ sha }}</code> {{ title }}</li>
+        {% endfor %}
+        {% if status.behind > status.commits | length %}
+          <li class="dim">and {{ status.behind - status.commits | length }} more</li>
+        {% endif %}
+      </ul>
+      {% if status.blocked %}
+        <div class="banner banner-warn"><p>{{ status.blocked }}</p></div>
+      {% endif %}
+    {% elif status.blocked %}
+      <p class="schedule-now dim">{{ status.blocked }}</p>
+    {% else %}
+      <p class="schedule-now"><strong>Up to date.</strong></p>
+    {% endif %}
+
+    <p class="schedule-now dim">
+      Running version {{ version or 'unknown' }}
+      {%- if status and status.checked_at %} · checked {{ status.checked_at | when }}{% endif %}.
+      Your configurations, collected cars and settings are not touched by an update.
+    </p>
+
+    <div class="form-actions">
+      {% if status and status.available and not status.blocked %}
+        <button type="button" class="btn-run small"
+                hx-post="/updates/apply" hx-target="#updates-panel" hx-swap="outerHTML"
+                hx-indicator="#updates-spinner"
+                hx-confirm="Update CarWatch now? It restarts afterwards, which takes a few seconds.">
+          Update now</button>
+      {% endif %}
+      <button type="button" class="btn"
+              hx-post="/updates/check" hx-target="#updates-panel" hx-swap="outerHTML"
+              hx-indicator="#updates-spinner">Check now</button>
+      <span class="htmx-indicator spinner" id="updates-spinner"></span>
+    </div>
+  {% endif %}
+</section>

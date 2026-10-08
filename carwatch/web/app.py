@@ -248,6 +248,25 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     app.state.idle = None
     templates.env.globals["HEARTBEAT_SECONDS"] = HEARTBEAT_SECONDS
 
+    # Updates from GitHub (carwatch.updates). The latest check is kept here for
+    # the Runs tab's badge; the real dashboard's daily check refreshes it, and
+    # `restart` is set only there - a test client cannot restart itself.
+    from carwatch import updates
+
+    app.state.version = updates.current_version()
+    app.state.restart = None
+    app.state.update_status = None
+
+    def set_update_status(status) -> None:
+        app.state.update_status = status
+
+    app.state.set_update_status = set_update_status
+    templates.env.globals["update_available"] = lambda: bool(
+        app.state.update_status
+        and app.state.update_status.available
+        and not app.state.update_status.blocked
+    )
+
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

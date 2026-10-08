@@ -1175,3 +1175,13 @@ a.next-run:hover { color: var(--accent); }
    apart with a rule underneath and a muted bar. */
 .km-bands tr.band-new td { border-bottom: 2px solid var(--line); }
 .km-bands tr.band-new .km-bar { background: var(--dim); }
+
+/* ----------------------------------------------------------- updates */
+
+.update-list { margin: .3rem 0 .5rem; padding-left: 1.1rem; font-size: 13px; }
+.update-list li { margin: .1rem 0; }
+.update-list code { color: var(--dim); font-size: 12px; margin-right: .3rem; }
+.nav-badge.update-badge { background: var(--down); color: #fff; font-size: 10px; }
+@media (prefers-color-scheme: dark) {
+  .nav-badge.update-badge { color: #04120a; }
+}

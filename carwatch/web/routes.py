@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import subprocess
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from time import monotonic
@@ -20,15 +21,15 @@ from pathlib import Path
 from typing import Annotated, Optional
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Form, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from pydantic import BeforeValidator
 from starlette.concurrency import run_in_threadpool
 from sqlmodel import Session, func, select
 
-from carwatch import scheduling, search_urls, site_rules
+from carwatch import scheduling, search_urls, site_rules, updates
 from carwatch.adapters.base import AdapterError, BlockedError, get_adapter
-from carwatch.collector.lock import CollectionBusy, collection_lock
+from carwatch.collector.lock import CollectionBusy, active_holder, collection_lock
 from carwatch.config import (
     KNOWN_SITES,
     PLACEHOLDER,
@@ -2029,6 +2030,76 @@ def runs_log(request: Request, limit: OptInt = None, show: str = Query("all")) -
         totals=totals,
         title="Runs",
     )
+
+
+# ------------------------------------------------------------- updates
+
+
+def _updates_panel(request: Request, **extra) -> HTMLResponse:
+    status = request.app.state.update_status
+    if status is None:
+        with _session(request) as session:
+            status = updates.load(session)
+        if status is not None:
+            request.app.state.set_update_status(status)
+    return _render(
+        request,
+        "partials/updates_panel.html",
+        status=status,
+        unsupported=updates.unsupported_reason(),
+        version=request.app.state.version,
+        can_restart=request.app.state.restart is not None,
+        **extra,
+    )
+
+
+@router.get("/updates", response_class=HTMLResponse)
+def updates_panel(request: Request) -> HTMLResponse:
+    """The Runs page's update panel, loaded after the page like the schedule's."""
+    return _updates_panel(request)
+
+
+@router.post("/updates/check", response_class=HTMLResponse)
+def check_for_updates(request: Request) -> HTMLResponse:
+    """Ask GitHub now, rather than waiting for the daily check."""
+    status = updates.check()
+    with _session(request) as session:
+        updates.save(session, status)
+    request.app.state.set_update_status(status)
+    return _updates_panel(request, checked=True)
+
+
+@router.post("/updates/apply", response_class=HTMLResponse)
+def apply_update(request: Request, background: BackgroundTasks) -> HTMLResponse:
+    """Update to GitHub's version, then restart onto it."""
+    config = request.app.state.config
+    if request.app.state.jobs.is_busy() or active_holder(config.db_file):
+        return _updates_panel(
+            request, error="A collection is running. Update once it has finished."
+        )
+    try:
+        applied = updates.apply()
+    except updates.UpdateError as exc:
+        return _updates_panel(request, error=str(exc))
+    except (OSError, subprocess.SubprocessError) as exc:
+        return _updates_panel(request, error=f"The update did not run: {exc}")
+
+    status = updates.check(fetch=False)
+    with _session(request) as session:
+        updates.save(session, status)
+    request.app.state.set_update_status(status)
+
+    restart = request.app.state.restart
+    if restart is not None:
+        # After the response is sent, so the page gets its answer first.
+        background.add_task(restart)
+    return _updates_panel(request, applied=applied, restarting=restart is not None)
+
+
+@router.get("/updates/version", response_class=PlainTextResponse)
+def running_version(request: Request) -> str:
+    """The commit this dashboard is running - how the page sees a restart land."""
+    return request.app.state.version
 
 
 # ------------------------------------------------------------- changes feed

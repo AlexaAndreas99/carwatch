@@ -57,12 +57,16 @@ def _windowless_python() -> str:
 
 def start(port: int, idle_minutes: float, log: Path = LOG) -> None:
     """Start the dashboard in the background, outliving this launcher."""
-    command = [
+    spawn_detached([
         _windowless_python(), "-m", "carwatch.web",
         "--port", str(port),
         "--idle-exit", f"{idle_minutes:g}",
         "--log", str(log),
-    ]
+    ])
+
+
+def spawn_detached(command: list[str]) -> None:
+    """Run `command` in the background, with no window, outliving its parent."""
     if sys.platform == "win32":
         detach = {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
     else:

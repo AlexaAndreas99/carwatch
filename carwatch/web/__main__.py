@@ -69,6 +69,28 @@ def main(argv: list[str] | None = None) -> int:
 
         app = create_app(args.config)
         server = uvicorn.Server(uvicorn.Config(app, host=args.host, port=args.port))
+
+        # After an in-app update (carwatch.updates) this process still runs the
+        # old code: hand over to a relauncher that starts a fresh copy with the
+        # same arguments once this one has stopped, then stop.
+        web_args = list(sys.argv[1:] if argv is None else argv)
+
+        def restart() -> None:
+            from carwatch.launch import _windowless_python, spawn_detached
+
+            print("Updated; restarting.", flush=True)
+            spawn_detached([
+                _windowless_python(), "-m", "carwatch.web.restart",
+                str(args.port), "--", *web_args,
+            ])
+            server.should_exit = True
+
+        app.state.restart = restart
+
+        # Once a day, ask GitHub whether there is anything new (Runs page).
+        from carwatch.updates import start_daily_check
+
+        start_daily_check(config.db_file, app.state.set_update_status)
         if args.idle_exit > 0:
             from carwatch.web.idle import IdleWatch
 

@@ -41,16 +41,24 @@
   <p class="dim">Checking…</p>
 </section>
 
+<section class="schedule-panel updates-panel" id="updates-panel"
+         hx-get="/updates" hx-trigger="load" hx-swap="outerHTML">
+  <h2 class="section-head">Updates</h2>
+  <p class="dim">Loading…</p>
+</section>
+
 {#
   The per-source health table used to live here. It moved to each
   configuration's own page (configurations plan §8), which is where "is this
   configuration collecting?" is actually asked. What is left is the run log:
   every run, newest first, whatever it belonged to.
 #}
+{% if config_links %}
 <p class="totals">
   Per-source health now lives on each configuration's page —
   {% for name, slug in config_links %}<a href="/config/{{ slug }}">{{ name }}</a>{{ ', ' if not loop.last }}{% endfor %}.
 </p>
+{% endif %}
 
 <h2 class="section-head">Run log</h2>
 <p class="totals">Most recent first. Blocked and errored runs are listed here so
