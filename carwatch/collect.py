@@ -137,9 +137,14 @@ def cmd_collect(
     force: bool = False,
 ) -> int:
     if run_all:
+        # Nothing to collect is a state, not a mistake: a fresh install has no
+        # configurations yet, and a scheduled run then must not log a failure.
+        if not config.searches:
+            print("Nothing to collect yet: add a configuration in the dashboard.")
+            return 0
         if not config.enabled_searches():
-            print("No enabled searches in config.", file=sys.stderr)
-            return 1
+            print("Nothing to collect: every configuration is archived.")
+            return 0
         names = None
     else:
         assert which is not None

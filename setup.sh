@@ -4,8 +4,8 @@
 #   ./setup.sh
 #
 # Creates the virtual environment, installs the dependencies and the Chromium
-# that olx.ro needs, and leaves you a config.yaml to fill in. Safe to run
-# again: whatever is already in place is left alone.
+# that olx.ro needs, and leaves you a config.yaml - searches are added from
+# the dashboard. Safe to run again: whatever is already in place is left alone.
 #
 # --skip-browser installs no Chromium. autovit and mobile.de still work; olx
 # does not, because CloudFront refuses plain HTTP requests.
@@ -133,11 +133,10 @@ fi
 
 echo
 echo "Done. Next:"
+echo "  $open_it"
 if [ "$fresh" = "1" ]; then
-  echo "  1. Open config.yaml and paste your search URLs over PASTE_URL_HERE."
-  echo "  2. $open_it"
-else
-  echo "  $open_it"
+  echo "  Then add your first configuration in the dashboard: paste the search"
+  echo "  links from Autovit, OLX or mobile.de. No file to edit."
 fi
 echo
 echo "A schedule is optional and off by default - set it on the Runs page."

@@ -158,3 +158,34 @@ def test_find_search_is_case_insensitive(tmp_path):
     cfg = load_config(write(tmp_path, GOOD))
     assert cfg.find_search("qashqai") is not None
     assert cfg.find_search("nope") is None
+
+
+# ------------------------------------------------- a fresh install: no searches
+
+
+@pytest.mark.parametrize("searches", ["searches: []\n", "searches:\n", ""])
+def test_a_config_with_no_searches_loads(tmp_path, searches):
+    """A fresh install starts like this; the first search comes from the dashboard."""
+    path = write(tmp_path, 'settings:\n  db_path: "./t.db"\n' + searches)
+
+    config = load_config(path)
+
+    assert config.searches == [] and config.enabled_searches() == []
+
+
+def test_searches_must_still_be_a_list(tmp_path):
+    path = write(tmp_path, 'settings:\n  db_path: "./t.db"\nsearches: "Qashqai"\n')
+
+    with pytest.raises(ConfigError, match="must be a list"):
+        load_config(path)
+
+
+def test_the_shipped_example_needs_no_editing():
+    """setup copies it to config.yaml, and CarWatch must start on that copy."""
+    from pathlib import Path
+
+    example = Path(__file__).resolve().parent.parent / "config.example.yaml"
+    config = load_config(example)
+
+    assert config.searches == []
+    assert "PASTE_URL_HERE" not in example.read_text(encoding="utf-8")

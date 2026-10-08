@@ -54,6 +54,13 @@
       <p>No {{ market_label }} cars match these filters.</p>
       <p class="dim"><a href="{{ page.path }}?market={{ market }}{% if filters.config %}&config={{ filters.config }}{% endif %}">Clear them</a> to see all
          {{ stats.total }}.</p>
+    {% elif not sidebar.configurations %}
+      {# A fresh install: config.yaml has settings and no searches yet. #}
+      <p><strong>Nothing to watch yet.</strong></p>
+      <p class="dim">A configuration is one car you are looking for. Set up the
+         search on Autovit, OLX or mobile.de, paste its link, and CarWatch keeps
+         an eye on it for you.</p>
+      <p><a class="btn-run" href="/config/new">Add your first configuration</a></p>
     {% else %}
       <p>Nothing collected for {{ market_label }} yet.</p>
       <p class="dim">Press <strong>Run all now</strong>, or run

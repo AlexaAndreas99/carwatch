@@ -22,7 +22,8 @@ cd carwatch
 ./setup.sh          # macOS  ·  Windows: .\setup.ps1
 ```
 
-Then paste your search URLs into `config.yaml` and open the dashboard. Full setup is below.
+Then open the dashboard and add your first configuration by pasting search links — no file to
+edit. Full setup is below.
 
 ## What it does
 
@@ -59,7 +60,7 @@ MIT licensed.
 
 Requires **Python 3.11+**. One script does the rest: it creates the virtual environment,
 installs the dependencies, installs the Chromium that olx.ro needs, and copies
-`config.example.yaml` to `config.yaml` for you to fill in. Running it again is harmless —
+`config.example.yaml` to `config.yaml` (settings only, no searches yet). Running it again is harmless —
 anything already in place is left alone.
 
 ### Windows (PowerShell)
@@ -109,18 +110,16 @@ task* cannot reliably read `%LOCALAPPDATA%` (see `carwatch/adapters/browser.py`)
 
 ## Configure
 
-Open `config.yaml` — setup created it from `config.example.yaml`, and it is not in the
-repository, since your searches are your own business. The only fields you must fill in are
-the `sources[].url` values: run the search on each site in your browser, set the filters you
-want, then copy the address bar into that site's box, replacing `PASTE_URL_HERE`. The pasted
-URL already carries your filters; CarWatch just paginates it.
+There is nothing to edit before the first start. Open the dashboard and press **+** next to
+*Configurations*: run your search on Autovit, OLX and/or mobile.de in the browser with the
+filters you want, and paste each address-bar link into the form. The pasted URL already carries
+your filters; CarWatch just paginates it. A configuration can pull from one, two or all three
+sites, and the dashboard also edits, archives and deletes them.
 
-Delete any source you don't want — a search can pull from one, two or all three sites. The
-`make` / `model` / `year_min` / `price_max` fields are labels for the dashboard only; the real
-filtering lives in the URLs.
-
-After the first run you need not touch the file again: the dashboard creates, edits, archives
-and deletes configurations by writing `config.yaml` itself, comments and all.
+Everything is stored in `config.yaml`, which setup created from `config.example.yaml`. It is not
+in the repository, since your searches are your own business. The dashboard writes it for you,
+comments and all; if you prefer editing it by hand, the example file shows the format. For
+mobile.de the link must be a `/ro/vehicule/cautare.html` one.
 
 ## Use
 

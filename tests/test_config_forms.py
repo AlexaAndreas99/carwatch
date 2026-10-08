@@ -411,8 +411,7 @@ def test_archiving_disables_rather_than_deletes(app):
 def _archived_second(app, name="Juke"):
     """A second configuration, archived and ready to delete.
 
-    The fixture's file holds only one, and the last configuration can never
-    be deleted.
+    The fixture's file holds only one.
     """
     app.save(**form(name))
     slug = name.lower()
@@ -467,22 +466,18 @@ def test_deleting_leaves_a_backup_of_the_file(app):
     assert backups and backups[-1].read_text(encoding="utf-8") == before
 
 
-def test_the_last_configuration_cannot_be_deleted(app):
-    """`load_config` refuses an empty `searches:` — deleting it would stop
-    CarWatch loading at all."""
+def test_the_last_configuration_can_be_deleted_and_carwatch_still_loads(app):
+    """CarWatch starts with no configurations, so it can end with none too."""
     app.client.post("/config/qashqai-2024/archive", follow_redirects=False)
-    before = app.body()
 
     page = app.client.get("/config/qashqai-2024/delete").text
-    assert "only configuration" in page
-    assert 'class="btn-danger"' not in page  # no button that can only fail
+    assert 'class="btn-danger"' in page
 
-    # Posted anyway, the writer refuses it too.
     r = delete(app, "qashqai-2024", stamp=app.stamp())
 
-    assert r.status_code == 409
-    assert "only configuration" in r.text
-    assert app.body() == before
+    assert r.status_code == 303
+    assert app.config().searches == []
+    assert app.client.get("/").status_code == 200
 
 
 def test_a_stale_stamp_refuses_the_delete(app):

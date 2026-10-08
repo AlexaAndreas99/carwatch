@@ -136,15 +136,6 @@ class NotArchivedError(ConfigWriteError):
     """
 
 
-class LastConfigurationError(ConfigWriteError):
-    """config.yaml must keep at least one configuration.
-
-    `load_config` refuses an empty `searches:` list, and a file the app cannot
-    load stops every collection — so the delete that would produce one is
-    refused instead.
-    """
-
-
 # -------------------------------------------------------------- file stamp
 
 
@@ -336,6 +327,11 @@ def _searches(doc: CommentedMap) -> CommentedSeq:
         doc["searches"] = node
     if not isinstance(node, list):
         raise InvalidConfigError("`searches` must be a list.")
+    # An empty list is written `searches: []`, and ruamel reads that back in
+    # flow style - so the first configuration appended to it would come out as
+    # one long `[{name: ..., sources: [...]}]` line. Block style, like the rest.
+    if not node and isinstance(node, CommentedSeq):
+        node.fa.set_block_style()
     return node
 
 
@@ -643,12 +639,6 @@ def delete_search(
             raise NotArchivedError(
                 f"{_block_name(block)!r} is still collecting. Archive it first — "
                 f"only an archived configuration can be deleted."
-            )
-        if len(_searches(doc)) == 1:
-            raise LastConfigurationError(
-                f"{_block_name(block)!r} is the only configuration in "
-                f"{Path(path).name}, and CarWatch needs at least one to load. "
-                f"Create another before deleting this one."
             )
         _remove_block(doc, index)
 

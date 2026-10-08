@@ -339,9 +339,13 @@ def load_config(path: str | Path = "config.yaml") -> Config:
 
     settings = _parse_settings(raw.get("settings"))
 
+    # None and [] both mean "nothing configured yet": a fresh install starts
+    # like that, and the first configuration is added from the dashboard.
     raw_searches = raw.get("searches")
-    if not isinstance(raw_searches, list) or not raw_searches:
-        raise ConfigError(f"{cfg_path} needs a non-empty `searches` list.")
+    if raw_searches is None:
+        raw_searches = []
+    if not isinstance(raw_searches, list):
+        raise ConfigError(f"{cfg_path}: `searches` must be a list.")
 
     searches = [parse_search(s, i) for i, s in enumerate(raw_searches)]
 

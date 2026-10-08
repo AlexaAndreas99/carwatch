@@ -3,8 +3,8 @@
 #   .\setup.ps1
 #
 # Creates the virtual environment, installs the dependencies and the Chromium
-# that olx.ro needs, and leaves you a config.yaml to fill in. Safe to run
-# again: whatever is already in place is left alone.
+# that olx.ro needs, and leaves you a config.yaml - searches are added from
+# the dashboard. Safe to run again: whatever is already in place is left alone.
 #
 # -SkipBrowser installs no Chromium. autovit and mobile.de still work; olx
 # does not, because CloudFront refuses plain HTTP requests.
@@ -69,13 +69,11 @@ if ($fresh) {
 
 Write-Output ""
 Write-Output "Done. Next:"
+Write-Output "  1. .\install-shortcut.ps1     # puts a CarWatch icon on the Desktop"
+Write-Output "  2. Double-click the icon, or run .\open-carwatch.ps1"
 if ($fresh) {
-    Write-Output "  1. Open config.yaml and paste your search URLs over PASTE_URL_HERE."
-    Write-Output "  2. .\install-shortcut.ps1     # puts a CarWatch icon on the Desktop"
-    Write-Output "  3. Double-click the icon, or run .\open-carwatch.ps1"
-} else {
-    Write-Output "  .\install-shortcut.ps1        # puts a CarWatch icon on the Desktop"
-    Write-Output "  Double-click the icon, or run .\open-carwatch.ps1"
+    Write-Output "  3. Add your first configuration in the dashboard: paste the search"
+    Write-Output "     links from Autovit, OLX or mobile.de. No file to edit."
 }
 Write-Output ""
 Write-Output "A schedule is optional and off by default - set it on the Runs page."

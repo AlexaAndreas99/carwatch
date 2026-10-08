@@ -51,19 +51,6 @@
     <a class="btn" href="/config/{{ c.slug }}">Back to {{ c.name }}</a>
   </div>
 
-{% elif only_one %}
-  <div class="banner banner-note">
-    <p>
-      It is the only configuration in <code>{{ config_file }}</code>, and
-      CarWatch needs at least one to load. Create another before deleting this
-      one.
-    </p>
-  </div>
-  <div class="actions">
-    <a class="btn" href="/config/new">New configuration</a>
-    <a class="btn" href="/config/{{ c.slug }}?disabled=1">Back</a>
-  </div>
-
 {% else %}
   <div class="delete-box">
     <p>This removes:</p>

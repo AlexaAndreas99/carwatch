@@ -31,7 +31,6 @@ from carwatch.config_writer import (
     FileStamp,
     ImpossibleRangeError,
     InvalidConfigError,
-    LastConfigurationError,
     NoSuchSearchError,
     NotArchivedError,
     SearchDraft,
@@ -398,8 +397,8 @@ searches:
     assert [s.name for s in load_config(path).searches] == ["A"]
 
 
-def test_the_last_configuration_cannot_be_deleted(tmp_path: Path):
-    """`load_config` refuses an empty `searches:` list."""
+def test_deleting_the_last_configuration_leaves_a_file_that_still_loads(tmp_path: Path):
+    """A fresh install has no configurations, so an emptied file is fine too."""
     path = tmp_path / "config.yaml"
     path.write_text(
         """settings:
@@ -413,11 +412,33 @@ searches:
 """,
         encoding="utf-8",
     )
-    original = body(path)
 
-    with pytest.raises(LastConfigurationError, match="only configuration"):
-        delete_search(path, "Only")
-    assert body(path) == original
+    delete_search(path, "Only")
+
+    assert load_config(path).searches == []
+    assert 'db_path: "./t.db"' in body(path)
+
+
+def test_the_first_configuration_goes_into_an_empty_list_in_block_style(tmp_path: Path):
+    """ruamel reads `searches: []` as flow style; appending must not write one
+    long `[{name: ...}]` line."""
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        """settings:
+  db_path: "./t.db"
+searches: []
+""",
+        encoding="utf-8",
+    )
+
+    save_search(path, SearchDraft(
+        name="First", sources=[Source("autovit", "https://www.autovit.ro/autoturisme/dacia")],
+    ))
+
+    text = body(path)
+    assert "[{" not in text and "searches: [" not in text
+    assert any(line.lstrip().startswith("- name:") for line in text.splitlines())
+    assert [s.name for s in load_config(path).searches] == ["First"]
 
 
 def test_deleting_an_unknown_configuration_raises(config: Path):

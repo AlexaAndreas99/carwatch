@@ -626,3 +626,37 @@ def test_job_failure_is_reported_not_swallowed(app_and_config, monkeypatch):
     r = client.get("/run/status")
     assert "Run failed" in r.text
     assert "collector exploded" in r.text
+
+
+# ------------------------------------------------- a fresh install: no searches
+
+
+@pytest.fixture
+def fresh(tmp_path):
+    """config.yaml as setup leaves it: settings, and no searches yet."""
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        f'settings:\n  db_path: "{(tmp_path / "t.db").as_posix()}"\nsearches: []\n',
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_a_fresh_install_starts_and_asks_for_a_first_configuration(fresh):
+    client = TestClient(create_app(fresh))
+
+    page = client.get("/").text
+
+    assert "Nothing to watch yet." in page
+    assert 'href="/config/new">Add your first configuration' in page
+    assert "Press <strong>Run all now</strong>" not in page
+    for url in ("/favorites", "/changes", "/runs", "/config/new"):
+        assert client.get(url).status_code == 200
+
+
+def test_collecting_with_nothing_configured_is_not_an_error(fresh, capsys):
+    """A scheduled run on a fresh install must not log a failure."""
+    from carwatch.collect import main
+
+    assert main(["-c", str(fresh), "--all"]) == 0
+    assert "add a configuration in the dashboard" in capsys.readouterr().out

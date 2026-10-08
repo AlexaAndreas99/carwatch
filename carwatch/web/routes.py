@@ -1254,9 +1254,6 @@ def _delete_page(
         configuration=sidebar.selected,
         footprint=footprint,
         in_file=in_file,
-        # The writer refuses this too; saying so up front beats a button that
-        # can only fail.
-        only_one=in_file and len(config.searches) == 1,
         stamp=FileStamp.of(path).token,
         config_file=path.name,
         db_name=Path(config.db_file).name,
