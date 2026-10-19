@@ -12,13 +12,20 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import DateTime, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
 def utcnow() -> datetime:
     """Naive UTC timestamp (SQLite has no tz-aware storage; we stay consistent)."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+# Every timestamp column is declared with a plain DateTime. sqlmodel 0.0.48
+# began storing a bare `datetime` field as timezone-aware and refusing naive
+# values, which broke a fresh install on its first insert; naming the column
+# type keeps the naive UTC storage this database has always had.
+NAIVE = DateTime()
 
 
 class RunStatus(str, Enum):
@@ -48,7 +55,7 @@ class Search(SQLModel, table=True):
     # make/model/year/price etc. — display + grouping only, real filtering is in `url`.
     filters_json: str = Field(default="{}")
     enabled: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=utcnow)
+    created_at: datetime = Field(default_factory=utcnow, sa_type=NAIVE)
 
 
 class Listing(SQLModel, table=True):
@@ -87,8 +94,8 @@ class Listing(SQLModel, table=True):
     # the card falls back to a placeholder.
     image_url: Optional[str] = None
 
-    first_seen: datetime = Field(default_factory=utcnow)
-    last_seen: datetime = Field(default_factory=utcnow, index=True)
+    first_seen: datetime = Field(default_factory=utcnow, sa_type=NAIVE)
+    last_seen: datetime = Field(default_factory=utcnow, sa_type=NAIVE, index=True)
     is_active: bool = Field(default=True, index=True)
     # How many consecutive successful runs this listing has been absent from.
     # Compared against settings.delist_after_missed_runs before delisting.
@@ -105,7 +112,7 @@ class PriceHistory(SQLModel, table=True):
     listing_id: int = Field(foreign_key="listing.id", index=True)
     price: float
     currency: Optional[str] = None
-    observed_at: datetime = Field(default_factory=utcnow, index=True)
+    observed_at: datetime = Field(default_factory=utcnow, sa_type=NAIVE, index=True)
 
 
 class Run(SQLModel, table=True):
@@ -116,8 +123,8 @@ class Run(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     search_id: int = Field(foreign_key="search.id", index=True)
     site: str
-    started_at: datetime = Field(default_factory=utcnow, index=True)
-    finished_at: Optional[datetime] = None
+    started_at: datetime = Field(default_factory=utcnow, sa_type=NAIVE, index=True)
+    finished_at: Optional[datetime] = Field(default=None, sa_type=NAIVE)
     status: RunStatus = Field(default=RunStatus.OK)
     listings_found: int = 0
     new_count: int = 0
@@ -150,7 +157,7 @@ class Favorite(SQLModel, table=True):
     site_listing_id: str = Field(index=True)
     title: str = ""
     url: str = ""
-    created_at: datetime = Field(default_factory=utcnow)
+    created_at: datetime = Field(default_factory=utcnow, sa_type=NAIVE)
 
 
 class AppState(SQLModel, table=True):
@@ -177,4 +184,4 @@ class Event(SQLModel, table=True):
     type: EventType = Field(index=True)
     old_price: Optional[float] = None
     new_price: Optional[float] = None
-    created_at: datetime = Field(default_factory=utcnow, index=True)
+    created_at: datetime = Field(default_factory=utcnow, sa_type=NAIVE, index=True)
