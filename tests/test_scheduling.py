@@ -52,15 +52,22 @@ def test_daily_needs_a_time():
         Schedule.from_form("daily", "7.30", None)
 
 
-@pytest.mark.parametrize("hours", [6, 8, 12])
-def test_every_six_eight_or_twelve_hours(hours):
+@pytest.mark.parametrize("hours", [1, 2, 3, 4, 6, 8, 12])
+def test_any_interval_that_divides_the_day(hours):
     assert Schedule.from_form("hours", "08:00", hours) == Schedule(HOURS, "08:00", hours)
 
 
-@pytest.mark.parametrize("hours", [1, 2, 4, 5, None])
-def test_nothing_more_often_than_every_six_hours(hours):
-    with pytest.raises(ValueError, match="nothing more often"):
+@pytest.mark.parametrize("hours", [5, 7, 24, 0, None])
+def test_an_interval_that_does_not_divide_the_day_is_refused(hours):
+    """Every 5 hours from 08:00 would run at 04:00 and again at 08:00."""
+    with pytest.raises(ValueError, match="divide the day"):
         Schedule.from_form("hours", "08:00", hours)
+
+
+def test_every_hour_lands_on_every_hour():
+    times = Schedule(HOURS, "08:30", 1).times()
+    assert len(times) == 24
+    assert times[:3] == [(8, 30), (9, 30), (10, 30)]
 
 
 def test_an_unknown_mode_is_refused():
@@ -122,6 +129,37 @@ def test_windows_asks_task_scheduler_without_a_window():
 
     TaskScheduler(run=run).status()
     assert seen["creationflags"] == getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def test_windows_saving_passes_the_delay_along():
+    """Left to schedule.ps1's own default, the two could disagree."""
+    run = Runner()
+    TaskScheduler(run=run).apply(Schedule(DAILY, "08:00"))
+    command = run.calls[0]
+    assert command[command.index("-JitterMinutes") + 1] == "5"
+
+
+def test_windows_reports_an_older_delay_and_asks_for_a_save():
+    """Saved before the delay went from 20 minutes to 5: it still waits 20."""
+    answer = (
+        '{"registered": true, "headless": true, "state": "Ready", "at": "08:00",'
+        ' "every_hours": 6, "jitter": 20, "next_run": null, "last_run": null,'
+        ' "last_result": 0}'
+    )
+    status = TaskScheduler(run=Runner([("-Status", (0, answer, ""))])).status()
+    assert status.jitter == 20
+    assert any("up to 20 minutes" in note and "Save schedule" in note for note in status.notes)
+
+
+def test_windows_says_nothing_when_the_delay_is_current():
+    answer = (
+        '{"registered": true, "headless": true, "state": "Ready", "at": "08:00",'
+        ' "every_hours": 0, "jitter": 5, "next_run": null, "last_run": null,'
+        ' "last_result": 0}'
+    )
+    status = TaskScheduler(run=Runner([("-Status", (0, answer, ""))])).status()
+    assert status.jitter == 5
+    assert status.notes == []
 
 
 def test_windows_status_when_nothing_is_registered():
@@ -234,7 +272,7 @@ def test_mac_registration_writes_a_launch_agent(mac):
         {"Hour": 20, "Minute": 0},
     ]
     assert plist["ProgramArguments"][1].endswith("run.sh")
-    assert plist["ProgramArguments"][-3:] == ["--jitter", "20", "--scheduled"]
+    assert plist["ProgramArguments"][-3:] == ["--jitter", "5", "--scheduled"]
 
     commands = [" ".join(c) for c in run.calls]
     assert any(c.startswith("launchctl bootout gui/501/") for c in commands)
@@ -376,7 +414,7 @@ def test_saving_registers_the_schedule(panel):
     assert backend.applied == [Schedule(HOURS, "08:00", 6)]
     assert "Saved" in body
     assert "Every 6 hours (02:00, 08:00, 14:00, 20:00)" in body
-    assert "Next run tomorrow between 08:00 and 08:20" in " ".join(body.split())
+    assert "Next run tomorrow between 08:00 and 08:05" in " ".join(body.split())
 
 
 def test_turning_it_off(panel):
@@ -388,9 +426,9 @@ def test_turning_it_off(panel):
     assert "turned off" in body
 
 
-def test_too_often_is_refused_before_the_scheduler_is_asked(panel):
+def test_an_odd_interval_is_refused_before_the_scheduler_is_asked(panel):
     client, backend = panel
-    body = client.post("/schedule", data={"mode": "hours", "at": "08:00", "every_hours": "2"}).text
+    body = client.post("/schedule", data={"mode": "hours", "at": "08:00", "every_hours": "5"}).text
 
     assert backend.applied == []
     assert "Not saved" in body
@@ -420,7 +458,7 @@ def test_an_unsupported_system_says_so(panel):
 
 # ------------------------------------------------ when the next run really is
 #
-# "Next run 18:50" is only the start of a twenty-minute window: each run picks
+# "Next run 18:50" is only the start of a five-minute window: each run picks
 # a random minute in it when it starts. The dashboard says the window, and
 # once a run has picked its minute, that minute.
 
@@ -429,14 +467,24 @@ def test_the_window_is_the_start_plus_the_random_delay():
     status = ScheduleStatus(
         system="x", schedule=Schedule(DAILY, "18:50"), next_run=datetime(2026, 9, 11, 18, 50)
     )
-    assert status.window == (datetime(2026, 9, 11, 18, 50), datetime(2026, 9, 11, 19, 10))
+    assert status.window == (datetime(2026, 9, 11, 18, 50), datetime(2026, 9, 11, 18, 55))
+
+
+def test_the_window_uses_the_delay_the_schedule_was_saved_with():
+    status = ScheduleStatus(
+        system="x",
+        schedule=Schedule(DAILY, "18:50"),
+        next_run=datetime(2026, 9, 11, 18, 50),
+        jitter=20,
+    )
+    assert status.window[1] == datetime(2026, 9, 11, 19, 10)
 
 
 def test_the_top_bar_line_says_the_window():
     status = ScheduleStatus(
         system="x", schedule=Schedule(DAILY, "08:00"), next_run=datetime(2026, 9, 12, 8, 0)
     )
-    assert summary(status, NOW) == "Next run tomorrow 08:00–08:20"
+    assert summary(status, NOW) == "Next run tomorrow 08:00–08:05"
 
 
 def test_the_top_bar_says_nothing_when_there_is_no_schedule():
@@ -536,7 +584,7 @@ def test_the_top_bar_line(panel):
     client.app.state.schedule_cache = None
     backend.current = Schedule(DAILY, "08:00")
     body = client.get("/schedule/next").text
-    assert "Next run tomorrow 08:00–08:20" in body
+    assert "Next run tomorrow 08:00–08:05" in body
     assert 'href="/runs"' in body
 
 
@@ -553,7 +601,7 @@ def test_saving_refreshes_the_top_bar(panel):
     client.get("/schedule/next")
     client.post("/schedule", data={"mode": "daily", "at": "08:00"})
 
-    assert "Next run tomorrow 08:00–08:20" in client.get("/schedule/next").text
+    assert "Next run tomorrow 08:00–08:05" in client.get("/schedule/next").text
 
 
 def test_a_run_under_way_is_shown_and_followed(panel):
@@ -609,3 +657,17 @@ def test_a_headless_task_needs_no_note():
         run=Runner([("-Status", (0, json.dumps(answer), ""))]), now=lambda: NOW
     )
     assert backend.status().notes == []
+
+
+def test_mac_reports_an_older_delay_and_asks_for_a_save(mac):
+    backend, run = mac
+    backend.apply(Schedule(DAILY, "08:00"))
+    plist = plistlib.loads(backend.plist_path.read_bytes())
+    at = plist["ProgramArguments"].index("--jitter")
+    plist["ProgramArguments"][at + 1] = "20"
+    backend.plist_path.write_bytes(plistlib.dumps(plist))
+    run.answers = [("launchctl print", (0, "state = waiting\n", ""))]
+
+    status = backend.status()
+    assert status.jitter == 20
+    assert any("up to 20 minutes" in note for note in status.notes)

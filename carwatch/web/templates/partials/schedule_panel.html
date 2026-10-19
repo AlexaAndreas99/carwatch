@@ -25,7 +25,7 @@
   {% else %}
     <p class="schedule-now">
       {% if s.is_on %}
-        <strong>{{ s.describe() }}</strong>, each run starting up to {{ jitter }}
+        <strong>{{ s.describe() }}</strong>, each run starting up to {{ status.jitter }}
         minutes late at random <span class="dim">· via {{ status.system }}</span>
       {% else %}
         <strong>Off.</strong> CarWatch collects only when you press Run.
@@ -115,8 +115,9 @@
         A run due while the computer was off or asleep happens as soon as it is
         back on.
       {% endif %}
-      Nothing more often than every 6 hours: mobile.de was accepted on the basis
-      of low volume.
+      Keep runs infrequent: mobile.de does not want its search pages collected,
+      and was accepted on the basis of low volume, so the more often CarWatch
+      asks, the likelier it is to be blocked there.
     </p>
   {% endif %}
 </section>

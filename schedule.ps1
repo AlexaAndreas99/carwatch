@@ -3,6 +3,7 @@
 #   .\schedule.ps1                      # daily at 08:00
 #   .\schedule.ps1 -At 19:30            # daily at 19:30
 #   .\schedule.ps1 -At 08:00 -EveryHours 6    # 08:00, 14:00, 20:00, 02:00
+#   .\schedule.ps1 -At 08:00 -EveryHours 1    # every hour, on the hour
 #   .\schedule.ps1 -Status              # show the registered task and its last result
 #   .\schedule.ps1 -Status -Json        # the same, for the dashboard's schedule panel
 #   .\schedule.ps1 -Remove              # unregister it
@@ -15,15 +16,20 @@
 # runs when you are logged on, which suits a personal machine. Pass -WakeToRun
 # if you want it to wake the machine.
 #
-# -EveryHours is 6, 8 or 12 — nothing more often. mobile.de, whose robots.txt
-# disallows the route CarWatch uses, was accepted on the basis of low volume.
+# -EveryHours is 1, 2, 3, 4, 6, 8 or 12: the intervals that divide the day, so
+# the runs land on the same clock times every day. Mind mobile.de, whose
+# robots.txt disallows the route CarWatch uses and which was accepted on the
+# basis of low volume: the more often, the likelier a block.
+#
+# -JitterMinutes: each run waits a random 0..N minutes first. The dashboard
+# passes its own value; this default matches it.
 
 [CmdletBinding()]
 param(
     [string]$At = "08:00",
     [int]$EveryHours = 0,
     [string]$TaskName = "CarWatch scheduled collection",
-    [int]$JitterMinutes = 20,
+    [int]$JitterMinutes = 5,
     [switch]$Remove,
     [switch]$Status,
     [switch]$Json,
@@ -80,6 +86,12 @@ if ($Status) {
             } catch { }
         }
 
+        # The random delay it was saved with, which is the one it will use.
+        $jitter = $null
+        if (($task.Actions | Select-Object -First 1).Arguments -match '--jitter\s+(\d+)') {
+            $jitter = [int]$Matches[1]
+        }
+
         # Registered by an older CarWatch, which ran powershell.exe directly
         # and so opened a window on every run. Saving again replaces it.
         $headless = [bool]($task.Actions | Where-Object { $_.Execute -match 'conhost' })
@@ -90,6 +102,7 @@ if ($Status) {
             state       = "$($task.State)"
             at          = $startAt
             every_hours = $hours
+            jitter      = $jitter
             next_run    = $next
             last_run    = $last
             last_result = $result
@@ -132,8 +145,8 @@ try {
     Write-Error "Could not read -At '$At'. Use 24-hour HH:mm, e.g. 08:00 or 19:30."
 }
 
-if ($EveryHours -ne 0 -and @(6, 8, 12) -notcontains $EveryHours) {
-    Write-Error "-EveryHours must be 6, 8 or 12 (got $EveryHours). Nothing more often than every 6 hours."
+if ($EveryHours -ne 0 -and @(1, 2, 3, 4, 6, 8, 12) -notcontains $EveryHours) {
+    Write-Error "-EveryHours must be 1, 2, 3, 4, 6, 8 or 12 (got $EveryHours): an interval that divides the day."
 }
 
 $runPs1 = Join-Path $root "run.ps1"

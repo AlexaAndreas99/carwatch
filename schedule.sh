@@ -15,7 +15,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 marker="# carwatch-daily"
 at="08:00"
-jitter=20
+jitter=5
 mode="install"
 
 while [[ $# -gt 0 ]]; do

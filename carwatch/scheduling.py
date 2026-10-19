@@ -41,16 +41,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OFF, DAILY, HOURS = "off", "daily", "hours"
 MODES = (OFF, DAILY, HOURS)
 
-# Nothing more often than every six hours. The original plan asks for "at most a
-# few times a day", and mobile.de — whose robots.txt disallows the route we use
-# — was accepted on the basis of low volume. All three divide the day, so a
-# schedule lands on the same clock times every day.
-EVERY_HOURS = (6, 8, 12)
+# Every interval that divides the day, so a schedule lands on the same clock
+# times every day: every 5 hours from 08:00 would run at 04:00 and then again at
+# 08:00, four hours apart. How often is the user's call. The panel says what it
+# costs: mobile.de, whose robots.txt disallows the route we use, was accepted
+# on the basis of low volume.
+EVERY_HOURS = (1, 2, 3, 4, 6, 8, 12)
 
 # Each scheduled run starts up to this many minutes late, at random (the
 # wrappers' `--jitter`). A job firing at exactly the same second every day is
-# the most machine-looking traffic pattern there is.
-JITTER_MINUTES = 20
+# the most machine-looking traffic pattern there is. Kept short, so the time on
+# the Runs page is close to the time it collects; it was 20 until 2026-09-27,
+# and a schedule saved then keeps its 20 until saved again (see `jitter` below).
+JITTER_MINUTES = 5
 
 TASK_NAME = "CarWatch scheduled collection"
 LAUNCHD_LABEL = "ro.carwatch.collect"
@@ -95,8 +98,8 @@ class Schedule:
 
         if every_hours not in EVERY_HOURS:
             raise ValueError(
-                "Every 6, 8 or 12 hours — nothing more often than every 6, because "
-                "mobile.de was accepted on the basis of low volume."
+                "Pick every 1, 2, 3, 4, 6, 8 or 12 hours — intervals that divide "
+                "the day, so the runs land on the same times each day."
             )
         return cls(HOURS, at, every_hours)
 
@@ -188,13 +191,31 @@ class ScheduleStatus:
     # A scheduled run is under way, and — when the wrapper said — its minute.
     running: bool = False
     current: Optional[CurrentRun] = None
+    # The random delay the registered schedule was saved with, which is what it
+    # will actually use: an older save carries an older default.
+    jitter: int = JITTER_MINUTES
 
     @property
     def window(self) -> Optional[tuple[datetime, datetime]]:
         """When the next run will start collecting: somewhere in here."""
         if self.next_run is None:
             return None
-        return self.next_run, self.next_run + timedelta(minutes=JITTER_MINUTES)
+        return self.next_run, self.next_run + timedelta(minutes=self.jitter)
+
+    def note_old_jitter(self) -> None:
+        """Say so when the saved delay is not the current one."""
+        if self.schedule.is_on and self.jitter != JITTER_MINUTES:
+            self.notes.append(
+                f"This schedule was saved with a random delay of up to {self.jitter} "
+                f"minutes. Press Save schedule once, with the same settings, to use "
+                f"the current {JITTER_MINUTES}."
+            )
+
+
+def _jitter_of(args) -> Optional[int]:
+    """The `--jitter N` in a registered command line, or None."""
+    match = re.search(r"--jitter\s+(\d+)", " ".join(args) if isinstance(args, list) else args or "")
+    return int(match.group(1)) if match else None
 
 
 def day_label(moment: datetime, now: datetime) -> str:
@@ -334,6 +355,9 @@ class TaskScheduler:
                 "The task is registered but disabled in Task Scheduler, so it "
                 "will not run. Save the schedule again to re-enable it."
             )
+        if isinstance(data.get("jitter"), int):
+            status.jitter = data["jitter"]
+            status.note_old_jitter()
         # Missing from an older schedule.ps1's answer: say nothing then.
         if data.get("headless") is False:
             status.notes.append(
@@ -347,7 +371,7 @@ class TaskScheduler:
         if not schedule.is_on:
             self.remove()
             return
-        args = ["-At", schedule.at]
+        args = ["-At", schedule.at, "-JitterMinutes", str(JITTER_MINUTES)]
         if schedule.mode == HOURS:
             args += ["-EveryHours", str(schedule.every_hours)]
         self._check(self._script(*args))
@@ -451,6 +475,10 @@ class Launchd:
 
         status.schedule = _schedule_from_intervals(data.get("StartCalendarInterval"))
         status.next_run = status.schedule.next_after(self.now())
+        saved = _jitter_of(data.get("ProgramArguments"))
+        if saved is not None:
+            status.jitter = saved
+            status.note_old_jitter()
         # launchctl has no "running" state worth parsing; the wrapper's own
         # record says it, and is stale-proofed.
         status.current = read_current_run(self.root, self.now())
