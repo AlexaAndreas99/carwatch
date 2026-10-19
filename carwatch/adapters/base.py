@@ -75,14 +75,6 @@ class SiteAdapter(Protocol):
         ...
 
 
-class AdapterNotBuiltError(AdapterError):
-    """The site is known and configured, but its adapter isn't written yet.
-
-    Distinct from a fetch failure so the CLI can say "not built yet" instead of
-    showing a ModuleNotFoundError traceback for a phase we haven't reached.
-    """
-
-
 def get_adapter(site: str, settings: Any) -> SiteAdapter:
     """Look up an adapter by config site key.
 
@@ -100,23 +92,30 @@ def get_adapter(site: str, settings: Any) -> SiteAdapter:
         try:
             from carwatch.adapters.olx import OlxAdapter
         except ImportError as exc:
-            raise AdapterNotBuiltError(_not_built("olx", 5)) from exc
+            raise AdapterError(_could_not_load("olx", exc)) from exc
         return OlxAdapter(settings)
 
     if key == "mobilede":
         try:
             from carwatch.adapters.mobilede import MobileDeAdapter
         except ImportError as exc:
-            raise AdapterNotBuiltError(_not_built("mobilede", 8)) from exc
+            raise AdapterError(_could_not_load("mobilede", exc)) from exc
         return MobileDeAdapter(settings)
 
     raise AdapterError(f"No adapter for site {site!r}.")
 
 
-def _not_built(site: str, phase: int) -> str:
+def _could_not_load(site: str, exc: ImportError) -> str:
+    """What to tell someone whose install is missing a package this adapter needs.
+
+    These used to say "not built yet", from before the adapters existed. On a
+    first install on a Mac where OLX and mobile.de would not load, that hid the
+    real error behind a message that was simply untrue.
+    """
     return (
-        f"the {site} adapter is not built yet (planned for phase {phase}). "
-        f"Remove or comment out the {site} source in config.yaml to silence this."
+        f"the {site} adapter could not load: {exc}. A package CarWatch needs is "
+        f"missing or broken - run setup again (setup.ps1 on Windows, ./setup.sh "
+        f"on a Mac) to reinstall them."
     )
 
 

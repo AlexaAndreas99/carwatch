@@ -17,7 +17,6 @@ from sqlmodel import Session, select
 
 from carwatch.adapters.base import (
     AdapterError,
-    AdapterNotBuiltError,
     BlockedError,
     RawListing,
     get_adapter,
@@ -129,10 +128,6 @@ def collect_search(
         fetched = adapter.fetch_listings(search.url)
     except BlockedError as exc:
         return _finish_failed(session, run, summary, RunStatus.BLOCKED, str(exc))
-    except AdapterNotBuiltError as exc:
-        # Not a failure of the site — just a phase we haven't reached. Recorded
-        # as `partial` so it is visible without looking like a scraping error.
-        return _finish_failed(session, run, summary, RunStatus.PARTIAL, str(exc))
     except AdapterError as exc:
         return _finish_failed(session, run, summary, RunStatus.ERROR, str(exc))
     except Exception as exc:  # noqa: BLE001 - one site must never break the others

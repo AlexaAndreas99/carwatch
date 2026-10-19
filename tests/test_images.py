@@ -6,7 +6,7 @@ placeholder rejection, neither of which needs a real parser.
 """
 
 import pytest
-from selectolax.parser import HTMLParser
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 from carwatch.adapters.images import image_url_from, in_block
 

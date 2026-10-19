@@ -7,7 +7,7 @@ parser is exercised against the actual DOM rather than something idealised.
 from pathlib import Path
 
 import pytest
-from selectolax.parser import HTMLParser
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 from carwatch.adapters.base import BlockedError
 from carwatch.adapters.olx import OlxAdapter

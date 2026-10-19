@@ -7,7 +7,7 @@ is exercised against the actual DOM rather than something idealised.
 from pathlib import Path
 
 import pytest
-from selectolax.parser import HTMLParser
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 from carwatch.adapters.base import BlockedError, get_adapter
 from carwatch.adapters.mobilede import MobileDeAdapter

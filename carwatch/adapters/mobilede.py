@@ -52,7 +52,7 @@ import re
 from typing import Any, Optional
 from urllib.parse import parse_qsl, urlparse
 
-from selectolax.parser import HTMLParser, Node
+from selectolax.lexbor import LexborHTMLParser as HTMLParser, LexborNode as Node
 
 from carwatch.adapters.base import AdapterError, BlockedError, RawListing, report_page
 from carwatch.adapters.http import PoliteClient, with_page_param
