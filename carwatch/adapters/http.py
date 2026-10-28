@@ -129,7 +129,9 @@ class PoliteClient:
                 "User-Agent": user_agent,
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "ro-RO,ro;q=0.9,en;q=0.8",
-                "Accept-Encoding": "gzip, deflate, br",
+                # No Accept-Encoding: httpx's default offers only the encodings
+                # it can decode. Offering `br` without a Brotli package installed
+                # got autovit's pages back as undecodable bytes (2026-10-27).
                 "Connection": "keep-alive",
                 "Upgrade-Insecure-Requests": "1",
             },
