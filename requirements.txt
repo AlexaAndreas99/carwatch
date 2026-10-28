@@ -19,3 +19,7 @@ python-multipart>=0.0.9   # FastAPI Form() parsing, used by the "Run now" button
 # Browser escalation - required by olx.ro (CloudFront blocks plain HTTP) and
 # likely mobile.de in phase 8. After installing, run: playwright install chromium
 playwright>=1.47
+
+# Email notifications - the SMTP password lives in the system's credential
+# store (Windows Credential Manager, macOS Keychain), never in a file.
+keyring>=25

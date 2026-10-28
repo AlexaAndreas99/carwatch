@@ -27,7 +27,7 @@ from pydantic import BeforeValidator
 from starlette.concurrency import run_in_threadpool
 from sqlmodel import Session, func, select
 
-from carwatch import scheduling, search_urls, site_rules, updates
+from carwatch import notify, scheduling, search_urls, site_rules, updates
 from carwatch.adapters.base import AdapterError, BlockedError, get_adapter
 from carwatch.collector.lock import CollectionBusy, active_holder, collection_lock
 from carwatch.config import (
@@ -50,6 +50,7 @@ from carwatch.config_writer import (
 from carwatch.db import (
     KEEP_DB_BACKUPS,
     backup_database,
+    baseline_run_ids,
     configuration_footprint,
     get_engine,
     purge_configuration,
@@ -1670,7 +1671,7 @@ def configuration_page(
             )
             .order_by(Event.created_at.desc(), Event.id.desc())
         ).all()
-        baseline_run_ids = _baseline_run_ids(session)
+        first_runs = baseline_run_ids(session)
 
     # Merged per market, as everywhere else: Romanian and German inventory are
     # never the same car.
@@ -1688,7 +1689,7 @@ def configuration_page(
     delisted = sorted([c for c in cars if not c.is_active], key=lambda c: c.last_seen, reverse=True)
 
     groups = group_events(list(events))
-    groups = [g for g in groups if not _is_baseline(g, baseline_run_ids)]
+    groups = [g for g in groups if not _is_baseline(g, first_runs)]
     changes = []
     for group in groups:
         event, listing = pick_representative(group)
@@ -2025,6 +2026,7 @@ def runs_log(request: Request, limit: OptInt = None, show: str = Query("all")) -
         show=show,
         run_counts=run_counts,
         attention=attention,
+        notifications_visible=notify.NOTIFICATIONS_VISIBLE,
         names=names,
         config_links=[(c.name, c.slug) for c in index.configurations],
         totals=totals,
@@ -2100,6 +2102,131 @@ def apply_update(request: Request, background: BackgroundTasks) -> HTMLResponse:
 def running_version(request: Request) -> str:
     """The commit this dashboard is running - how the page sees a restart land."""
     return request.app.state.version
+
+
+# ------------------------------------------------------ email notifications
+
+
+def _notify_panel(request: Request, message: str = "", error: str = "") -> HTMLResponse:
+    if not notify.NOTIFICATIONS_VISIBLE:
+        raise HTTPException(status_code=404)
+    with _session(request) as session:
+        settings = notify.load_settings(session)
+        last = notify.load_last(session)
+        names = [c.name for c in configurations.load_configurations(session).configurations]
+    return _render(
+        request,
+        "partials/notify_panel.html",
+        n=settings,
+        last=last,
+        config_names=names,
+        has_password=bool(notify.get_password(settings.username)),
+        event_choices=[(t.value, notify.EVENT_LABELS[t][1]) for t in notify.EVENT_TYPES],
+        message=message,
+        error=error,
+    )
+
+
+@router.get("/notifications", response_class=HTMLResponse)
+def notifications_panel(request: Request) -> HTMLResponse:
+    """The Runs page's email panel, loaded after the page like the schedule's."""
+    return _notify_panel(request)
+
+
+def _settings_from_form(form, names: list[str]):
+    """The posted form as settings, or an error line."""
+    try:
+        port = int(form.get("smtp_port") or 587)
+        min_change = float(form.get("min_change") or 0)
+    except ValueError:
+        return None, "Port and minimum price change must be numbers."
+    if not 0 < port < 65536:
+        return None, "Port must be between 1 and 65535."
+    if min_change < 0:
+        return None, "The minimum price change cannot be negative."
+    events = [e for e in form.getlist("events") if e in {t.value for t in notify.EVENT_TYPES}]
+    kept = set(form.getlist("configs"))
+    settings = notify.NotifySettings(
+        enabled=form.get("enabled") == "on",
+        scope="favorites" if form.get("scope") == "favorites" else "all",
+        events=events,
+        min_change=min_change,
+        # Stored as the ones switched off, so a configuration added later
+        # notifies until you say otherwise.
+        muted=[name for name in names if name not in kept],
+        smtp_host=(form.get("smtp_host") or "").strip(),
+        smtp_port=port,
+        security=form.get("security") if form.get("security") in ("starttls", "ssl", "none") else "starttls",
+        username=(form.get("username") or "").strip(),
+        sender=(form.get("sender") or "").strip(),
+        recipient=(form.get("recipient") or "").strip(),
+    )
+    if settings.enabled and not settings.events:
+        return None, "Pick at least one kind of change, or switch notifications off."
+    if settings.enabled and not settings.is_configured:
+        return None, "To switch on, fill in the email server and the address to send to."
+    return settings, ""
+
+
+@router.post("/notifications", response_class=HTMLResponse)
+async def save_notifications(request: Request) -> HTMLResponse:
+    if not notify.NOTIFICATIONS_VISIBLE:
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    with _session(request) as session:
+        names = [c.name for c in configurations.load_configurations(session).configurations]
+        settings, error = _settings_from_form(form, names)
+        if settings is None:
+            return _notify_panel(request, error=error)
+        password = form.get("password") or ""
+        if password:
+            if not settings.username:
+                return _notify_panel(request, error="A password needs the username it belongs to.")
+            try:
+                notify.set_password(settings.username, password)
+            except Exception as exc:
+                return _notify_panel(
+                    request, error=f"Could not save the password in the credential store: {exc}"
+                )
+        notify.save_settings(session, settings)
+    return _notify_panel(request, message="Saved.")
+
+
+@router.post("/notifications/test", response_class=HTMLResponse)
+def test_notification(request: Request) -> HTMLResponse:
+    """Send a sample email with the saved settings, and say how it went."""
+    if not notify.NOTIFICATIONS_VISIBLE:
+        raise HTTPException(status_code=404)
+    with _session(request) as session:
+        settings = notify.load_settings(session)
+    if not settings.is_configured:
+        return _notify_panel(request, error="Save the email server and the address to send to first.")
+    sample = notify.Change(
+        type=EventType.PRICE_DOWN,
+        title="Test car — this is what a price drop looks like",
+        url="https://www.autovit.ro/",
+        configuration="CarWatch test email",
+        sites=["autovit"],
+        favorite=False,
+        old_price=27_500.0,
+        new_price=26_900.0,
+        currency="EUR",
+        year=2022,
+        mileage_km=54_000,
+        location="Bucuresti",
+    )
+    message = notify.build_message([sample], settings)
+    message.replace_header("Subject", "CarWatch: test email — notifications are set up")
+    try:
+        notify.send(settings, message, notify.get_password(settings.username))
+    except Exception as exc:
+        result = notify.LastResult(at=utcnow(), ok=False, error=notify.describe_error(exc), test=True)
+        with _session(request) as session:
+            notify.record_last(session, result)
+        return _notify_panel(request, error="Test email not sent: " + result.error)
+    with _session(request) as session:
+        notify.record_last(session, notify.LastResult(at=utcnow(), ok=True, test=True))
+    return _notify_panel(request, message=f"Test email sent to {settings.recipient}.")
 
 
 # ------------------------------------------------------------- changes feed
@@ -2225,41 +2352,6 @@ def _group_by_collection(rows: list, collection_of: dict[int, datetime]) -> list
     return groups
 
 
-def _baseline_run_ids(session: Session) -> set[int]:
-    """Each search's first successful run — the one that established where it started.
-
-    Its arrivals are not news: when you begin watching a search, every listing on
-    it is "new" by definition. On this database that was 215 of 216 rows on the
-    Changes page, burying the one thing that had actually happened.
-
-    Anchored on the first run that **completed successfully**, and deliberately
-    not on the first run that produced events. The difference matters for a
-    search that collects cleanly but finds nothing: the strict "2025 4x4 Tekna"
-    autovit search ran 19 times, every one `ok`, every one 0 results, because
-    autovit relaxes it. Keyed on events, it would have had no baseline until the
-    day real matches finally appeared - and would then have hidden them as
-    "already there". They are the opposite of that: we had been watching
-    successfully for days and genuinely finding none, so their arrival is the
-    most newsworthy thing that search can do.
-
-    A blocked or errored first run is still skipped, since it establishes
-    nothing about what was there.
-
-    Per search rather than globally, so a source added later gets its own
-    baseline instead of its whole inventory arriving as breaking news.
-    """
-    rows = session.exec(
-        select(Run.id, Run.search_id)
-        .where(Run.status == RunStatus.OK)
-        .order_by(Run.search_id, Run.started_at, Run.id)
-    ).all()
-
-    first: dict[int, int] = {}
-    for run_id, search_id in rows:
-        first.setdefault(search_id, run_id)
-    return set(first.values())
-
-
 def _is_baseline(group, baseline_run_ids: set[int]) -> bool:
     """True when every event behind a feed row came from a first run.
 
@@ -2314,7 +2406,7 @@ def _unseen_changes(session: Session, since: datetime) -> int:
     )
     if not pairs:
         return 0
-    baseline = _baseline_run_ids(session)
+    baseline = baseline_run_ids(session)
     return sum(1 for g in group_events(pairs) if not _is_baseline(g, baseline))
 
 
@@ -2433,12 +2525,12 @@ def changes_feed(
             counts_q = counts_q.where(Search.id.in_(scope))
         countable = list(session.exec(counts_q).all())
 
-        baseline_run_ids = _baseline_run_ids(session)
+        first_runs = baseline_run_ids(session)
         collection_of = _collection_of_run(session)
 
     groups = group_events([(e, l) for e, l, _ in fetched])
     if not show_baseline:
-        groups = [g for g in groups if not _is_baseline(g, baseline_run_ids)]
+        groups = [g for g in groups if not _is_baseline(g, first_runs)]
     if sites:
         groups = [g for g in groups if _reported_by(g, *sites)]
     groups = groups[:limit]
@@ -2462,7 +2554,7 @@ def changes_feed(
     # baseline setting, or every chip would over-promise by the whole first run.
     countable_groups = group_events(list(countable))
     if not show_baseline:
-        shown = [g for g in countable_groups if not _is_baseline(g, baseline_run_ids)]
+        shown = [g for g in countable_groups if not _is_baseline(g, first_runs)]
     else:
         shown = countable_groups
 
@@ -2486,7 +2578,7 @@ def changes_feed(
         countable_groups = [g for g in countable_groups if _reported_by(g, *sites)]
         shown = [g for g in shown if _reported_by(g, *sites)]
     baseline_count = sum(
-        1 for g in countable_groups if _is_baseline(g, baseline_run_ids)
+        1 for g in countable_groups if _is_baseline(g, first_runs)
     )
     countable_groups = shown
 

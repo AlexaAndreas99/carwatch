@@ -1176,6 +1176,34 @@ a.next-run:hover { color: var(--accent); }
 .km-bands tr.band-new td { border-bottom: 2px solid var(--line); }
 .km-bands tr.band-new .km-bar { background: var(--dim); }
 
+/* ------------------------------------------------- email notifications */
+
+.notify-form { display: grid; gap: .7rem; margin: .7rem 0 .2rem; font-size: 13px; }
+.notify-form fieldset {
+  border: 1px solid var(--line); border-radius: 6px; margin: 0; padding: .5rem .75rem .6rem;
+  display: grid; gap: .35rem;
+}
+.notify-form legend {
+  font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--dim); padding: 0 .3rem;
+}
+.notify-form label { display: flex; align-items: center; gap: .45rem; }
+.notify-switch { font-weight: 600; }
+.notify-form input[type="text"], .notify-form input[type="email"],
+.notify-form input[type="password"], .notify-form input[type="number"],
+.notify-form select {
+  font: inherit; padding: .2rem .4rem;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--bg); color: var(--ink);
+}
+.notify-form input[name="min_change"] { width: 6rem; }
+.notify-form input[name="smtp_port"] { width: 5rem; }
+/* The account fields line up: label text in one column, inputs in the next. */
+.notify-form .smtp { grid-template-columns: 6rem minmax(0, 22rem); align-items: center; }
+.notify-form .smtp label { display: contents; }
+.notify-form .smtp .field-note { grid-column: 1 / -1; margin-bottom: 0; }
+.notify-form .field-note { margin: .2rem 0 0; }
+
 /* ----------------------------------------------------------- updates */
 
 .update-list { margin: .3rem 0 .5rem; padding-left: 1.1rem; font-size: 13px; }

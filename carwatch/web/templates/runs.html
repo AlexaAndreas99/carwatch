@@ -47,6 +47,15 @@
   <p class="dim">Loading…</p>
 </section>
 
+{# Hidden while carwatch.notify.NOTIFICATIONS_VISIBLE is False. #}
+{% if notifications_visible %}
+<section class="schedule-panel notify-panel" id="notify-panel"
+         hx-get="/notifications" hx-trigger="load" hx-swap="outerHTML">
+  <h2 class="section-head">Email notifications</h2>
+  <p class="dim">Loading…</p>
+</section>
+{% endif %}
+
 {#
   The per-source health table used to live here. It moved to each
   configuration's own page (configurations plan §8), which is where "is this

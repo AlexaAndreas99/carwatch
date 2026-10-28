@@ -1,0 +1,111 @@
+{#
+  The email notifications panel on the Runs page (`/notifications`).
+
+  Loaded after the page and swapped in place on save or test, like the
+  schedule panel. The password field is write-only: it is saved to the system's
+  credential store and never sent back to the page.
+#}
+<section class="schedule-panel notify-panel" id="notify-panel">
+  <h2 class="section-head">Email notifications</h2>
+
+  {% if error %}
+    <div class="banner banner-bad"><p><strong>Not done.</strong> {{ error }}</p></div>
+  {% endif %}
+  {% if message %}
+    <p class="test-line ok">✓ {{ message }}</p>
+  {% endif %}
+
+  <p class="schedule-now">
+    {% if n.enabled %}
+      <strong>On.</strong> After each collection, CarWatch emails
+      {{ n.recipient }} about
+      {{ 'your favorites' if n.scope == 'favorites' else 'any car' }}
+      that changed in a way you picked below.
+    {% else %}
+      <strong>Off.</strong> Collections send no email.
+    {% endif %}
+  </p>
+  {% if last %}
+    <p class="schedule-now dim">
+      {% if last.test %}Last test email{% else %}Last email{% endif %}
+      {{ last.at.strftime('%Y-%m-%d %H:%M') }} UTC:
+      {% if last.ok %}sent{% if not last.test %}, {{ last.changes }} change{{ '' if last.changes == 1 else 's' }}{% endif %}.
+      {% else %}<span class="warn">not sent</span> — {{ last.error }}{% endif %}
+    </p>
+  {% endif %}
+
+  <form class="notify-form" hx-post="/notifications" hx-target="#notify-panel"
+        hx-swap="outerHTML" hx-indicator="#notify-spinner">
+
+    <label class="notify-switch">
+      <input type="checkbox" name="enabled" {{ 'checked' if n.enabled }}>
+      Send an email after each collection that finds something below
+    </label>
+
+    <fieldset>
+      <legend>Which cars</legend>
+      <label><input type="radio" name="scope" value="favorites" {{ 'checked' if n.scope == 'favorites' }}>
+        Only my favorites ★</label>
+      <label><input type="radio" name="scope" value="all" {{ 'checked' if n.scope != 'favorites' }}>
+        Every car in the configurations ticked below</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Which changes</legend>
+      {% for value, label in event_choices %}
+        <label><input type="checkbox" name="events" value="{{ value }}" {{ 'checked' if value in n.events }}>
+          {{ label | capitalize }}</label>
+      {% endfor %}
+      <label>Price changes of at least
+        <input type="number" name="min_change" min="0" step="50" value="{{ n.min_change | int }}"
+               aria-label="Minimum price change"> EUR</label>
+    </fieldset>
+
+    {% if config_names %}
+    <fieldset>
+      <legend>Configurations</legend>
+      {% for name in config_names %}
+        <label><input type="checkbox" name="configs" value="{{ name }}" {{ 'checked' if name not in n.muted }}>
+          {{ name }}</label>
+      {% endfor %}
+      <p class="field-note dim">Favorites are reported whichever configuration found them, as long as it is ticked.</p>
+    </fieldset>
+    {% endif %}
+
+    <fieldset class="smtp">
+      <legend>Email account</legend>
+      <label>Server <input type="text" name="smtp_host" value="{{ n.smtp_host }}" placeholder="smtp.gmail.com"></label>
+      <label>Port <input type="number" name="smtp_port" value="{{ n.smtp_port }}" min="1" max="65535"></label>
+      <label>Security
+        <select name="security">
+          <option value="starttls" {{ 'selected' if n.security == 'starttls' }}>STARTTLS (usually port 587)</option>
+          <option value="ssl" {{ 'selected' if n.security == 'ssl' }}>SSL/TLS (usually port 465)</option>
+          <option value="none" {{ 'selected' if n.security == 'none' }}>None</option>
+        </select>
+      </label>
+      <label>Username <input type="text" name="username" value="{{ n.username }}" autocomplete="off"
+                             placeholder="you@gmail.com"></label>
+      <label>Password
+        <input type="password" name="password" value="" autocomplete="new-password"
+               placeholder="{{ 'saved — leave blank to keep' if has_password else 'app password' }}">
+      </label>
+      <label>From <input type="text" name="sender" value="{{ n.sender }}" placeholder="same as username"></label>
+      <label>Send to <input type="email" name="recipient" value="{{ n.recipient }}" placeholder="you@gmail.com"></label>
+      <p class="field-note dim">
+        The password is kept in the system's password store (Credential Manager on
+        Windows, Keychain on a Mac), not in any CarWatch file.
+        For Gmail, use server smtp.gmail.com, port 587, STARTTLS, and an
+        <em>app password</em> (Google Account → Security → App passwords), not
+        your normal password.
+      </p>
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-run small">Save</button>
+      <button type="button" class="btn"
+              hx-post="/notifications/test" hx-target="#notify-panel" hx-swap="outerHTML"
+              hx-indicator="#notify-spinner">Send test email</button>
+      <span class="htmx-indicator spinner" id="notify-spinner"></span>
+    </div>
+  </form>
+</section>

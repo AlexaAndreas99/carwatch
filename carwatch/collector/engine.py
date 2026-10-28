@@ -346,10 +346,17 @@ def collect(
     dashboard "Run now" overlapping would each diff against a stale snapshot.
     Raises CollectionBusy if another collection is already running.
     """
+    started = utcnow()
     with collection_lock(config.db_file, source=source):
-        return _collect_locked(
+        summaries = _collect_locked(
             config, search_names, sites, adapter_factory, force, progress
         )
+    # After the lock: an email server taking its time must not hold up the next
+    # collection. Off unless switched on from the Runs page, and never raises.
+    from carwatch.notify import notify_after_collection
+
+    notify_after_collection(config.db_file, started)
+    return summaries
 
 
 def _collect_locked(

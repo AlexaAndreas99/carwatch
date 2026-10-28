@@ -17,7 +17,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 # Import for the side effect of registering tables on SQLModel.metadata.
 from carwatch import models  # noqa: F401
 from carwatch.config import Config, SearchConfig
-from carwatch.models import Event, Listing, PriceHistory, Run, Search
+from carwatch.models import Event, Listing, PriceHistory, Run, RunStatus, Search
 
 _engine = None
 _engine_path: Optional[Path] = None
@@ -282,3 +282,38 @@ def search_filters(row: Search) -> dict:
     except (TypeError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def baseline_run_ids(session: Session) -> set[int]:
+    """Each search's first successful run — the one that established where it started.
+
+    Its arrivals are not news: when you begin watching a search, every listing on
+    it is "new" by definition. On this database that was 215 of 216 rows on the
+    Changes page, burying the one thing that had actually happened.
+
+    Anchored on the first run that **completed successfully**, and deliberately
+    not on the first run that produced events. The difference matters for a
+    search that collects cleanly but finds nothing: the strict "2025 4x4 Tekna"
+    autovit search ran 19 times, every one `ok`, every one 0 results, because
+    autovit relaxes it. Keyed on events, it would have had no baseline until the
+    day real matches finally appeared - and would then have hidden them as
+    "already there". They are the opposite of that: we had been watching
+    successfully for days and genuinely finding none, so their arrival is the
+    most newsworthy thing that search can do.
+
+    A blocked or errored first run is still skipped, since it establishes
+    nothing about what was there.
+
+    Per search rather than globally, so a source added later gets its own
+    baseline instead of its whole inventory arriving as breaking news.
+    """
+    rows = session.exec(
+        select(Run.id, Run.search_id)
+        .where(Run.status == RunStatus.OK)
+        .order_by(Run.search_id, Run.started_at, Run.id)
+    ).all()
+
+    first: dict[int, int] = {}
+    for run_id, search_id in rows:
+        first.setdefault(search_id, run_id)
+    return set(first.values())
